@@ -4,7 +4,7 @@ type Phase2RouteShellProps = {
     description: string;
 };
 
-export function Phase2RouteShell({ path, title, description }: Phase2RouteShellProps) {
+export function Phase2RouteShell({ path, title, description }: Readonly<Phase2RouteShellProps>) {
     return (
         <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-6 py-16 text-zinc-900">
             <div className="w-full max-w-3xl rounded-xl border border-zinc-200 bg-white p-8 shadow-sm">

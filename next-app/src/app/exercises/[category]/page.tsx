@@ -4,7 +4,7 @@ type ExercisesByCategoryPageProps = {
     params: Promise<{ category: string }>;
 };
 
-export default async function ExercisesByCategoryPage({ params }: ExercisesByCategoryPageProps) {
+export default async function ExercisesByCategoryPage({ params }: Readonly<ExercisesByCategoryPageProps>) {
     const { category } = await params;
 
     return (

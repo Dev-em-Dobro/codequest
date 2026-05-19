@@ -4,7 +4,7 @@ type ExerciseDetailPageProps = {
     params: Promise<{ id: string }>;
 };
 
-export default async function ExerciseDetailPage({ params }: ExerciseDetailPageProps) {
+export default async function ExerciseDetailPage({ params }: Readonly<ExerciseDetailPageProps>) {
     const { id } = await params;
 
     return (
