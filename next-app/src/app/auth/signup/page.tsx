@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
+import { AlertCircle, ArrowLeft, CheckCircle, Mail, Shield, User } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 type ValidateEmailResponse = {
@@ -20,11 +22,13 @@ export default function SignUpPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [emailValidated, setEmailValidated] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isValidatingEmail, setIsValidatingEmail] = useState(false);
+    const [showRegistrationFields, setShowRegistrationFields] = useState(false);
+    const [showHelpContact, setShowHelpContact] = useState(false);
+    const [existingUser, setExistingUser] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [message, setMessage] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => {
         if (!authLoading && isAuthenticated) {
@@ -39,7 +43,9 @@ export default function SignUpPage() {
         }
 
         setError(null);
-        setMessage(null);
+        setSuccess(null);
+        setExistingUser(false);
+        setShowHelpContact(false);
         setIsValidatingEmail(true);
 
         try {
@@ -53,55 +59,55 @@ export default function SignUpPage() {
 
             const result = (await response.json()) as ValidateEmailResponse;
 
-            if (!response.ok || result.error) {
-                setEmailValidated(false);
-                setError(result.error || "Nao foi possivel validar o email.");
+            if (result.userExists) {
+                setExistingUser(true);
+                setError("Este email ja esta cadastrado. Faca login para continuar.");
+                setShowRegistrationFields(false);
                 return false;
             }
 
-            if (!result.isValid) {
-                setEmailValidated(false);
-                setError(result.message || "Email invalido para cadastro.");
-                return false;
+            if (result.isValid) {
+                setShowRegistrationFields(true);
+                setSuccess("Email validado! Agora complete seu cadastro.");
+                return true;
             }
 
-            setEmailValidated(true);
-            setMessage(result.message || "Email validado com sucesso.");
-            return true;
+            setShowRegistrationFields(false);
+            setError(result.message || "Email nao encontrado na base da formacao.");
+            setShowHelpContact(true);
+            return false;
         } catch {
-            setEmailValidated(false);
-            setError("Falha ao validar email. Tente novamente.");
+            setError("Erro ao validar email. Tente novamente.");
             return false;
         } finally {
             setIsValidatingEmail(false);
         }
     };
 
-    const handleSubmit = async (event: { preventDefault: () => void }) => {
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (!emailValidated) {
-            await validateEmail();
+        if (!showRegistrationFields) {
             return;
         }
 
-        if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-            setError("Preencha todos os campos.");
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            setError("As senhas nao coincidem.");
+        if (!name.trim() || !password.trim()) {
+            setError("Preencha todos os campos");
             return;
         }
 
         if (password.length < 8) {
-            setError("A senha precisa ter ao menos 8 caracteres.");
+            setError("A senha deve ter pelo menos 8 caracteres");
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            setError("As senhas nao coincidem");
             return;
         }
 
         setError(null);
-        setMessage(null);
+        setSuccess(null);
         setIsSubmitting(true);
 
         try {
@@ -113,132 +119,192 @@ export default function SignUpPage() {
 
             router.replace("/");
         } catch (submitError) {
-            const submitMessage = submitError instanceof Error ? submitError.message : "Falha no cadastro";
-            setError(submitMessage);
+            const message = submitError instanceof Error ? submitError.message : "Erro ao criar conta";
+            setError(message);
         } finally {
             setIsSubmitting(false);
         }
     };
 
     return (
-        <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 text-zinc-900">
-            <section className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-                <h1 className="text-2xl font-semibold tracking-tight">Criar conta</h1>
-                <p className="mt-2 text-sm text-zinc-600">Use o email validado da formacao para registrar seu acesso.</p>
+        <div className="min-h-screen bg-black flex items-center justify-center p-4">
+            <div className="w-full max-w-lg">
+                <div className="text-center mb-8">
+                    <Link href="/auth/signin" className="inline-flex items-center text-purple-400 hover:text-purple-300 mb-4 transition-colors">
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Voltar ao Login
+                    </Link>
 
-                <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-                    <div className="space-y-1">
-                        <label htmlFor="email" className="text-sm font-medium text-zinc-700">
-                            Email da formacao
-                        </label>
-                        <input
-                            id="email"
-                            type="email"
-                            value={email}
-                            onChange={(event) => {
-                                setEmail(event.target.value);
-                                setEmailValidated(false);
-                                setMessage(null);
-                                setError(null);
-                            }}
-                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                            placeholder="voce@exemplo.com"
-                            disabled={isSubmitting || isValidatingEmail}
-                            required
-                        />
+                    <div className="w-20 h-20 rounded-full bg-purple-500/20 border-2 border-purple-500 mx-auto mb-4 flex items-center justify-center">
+                        <Image src="/avatars/logo.png" alt="CodeQuest" width={64} height={64} className="w-16 h-16 object-contain rounded-full" />
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void validateEmail();
-                        }}
-                        className="w-full rounded-lg border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-800 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={isSubmitting || isValidatingEmail}
-                    >
-                        {isValidatingEmail ? "Validando..." : "Validar email"}
-                    </button>
+                    <h1 className="text-3xl font-bold mb-2" style={{ color: "#fff6e9" }}>
+                        Nova Conta da Guilda
+                    </h1>
+                    <p style={{ color: "#fff6e9", opacity: 0.8 }}>
+                        Valide seu email de formacao para iniciar sua jornada
+                    </p>
+                </div>
 
-                    {emailValidated ? (
-                        <>
-                            <div className="space-y-1">
-                                <label htmlFor="name" className="text-sm font-medium text-zinc-700">
-                                    Nome
-                                </label>
+                <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-6">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-2" style={{ color: "#fff6e9" }}>
+                                Email da Formacao
+                            </label>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-3.5 w-4 h-4 text-purple-400" />
                                 <input
-                                    id="name"
-                                    type="text"
-                                    value={name}
-                                    onChange={(event) => setName(event.target.value)}
-                                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                                    placeholder="Seu nome completo"
-                                    disabled={isSubmitting}
+                                    type="email"
+                                    value={email}
+                                    onChange={(event) => {
+                                        setEmail(event.target.value);
+                                        setShowRegistrationFields(false);
+                                        setExistingUser(false);
+                                        setShowHelpContact(false);
+                                        setError(null);
+                                        setSuccess(null);
+                                    }}
+                                    className="input-8bit pl-10 w-full"
+                                    placeholder="seu@email.com"
+                                    disabled={isValidatingEmail || showRegistrationFields || isSubmitting}
                                     required
                                 />
                             </div>
+                        </div>
 
-                            <div className="space-y-1">
-                                <label htmlFor="password" className="text-sm font-medium text-zinc-700">
-                                    Senha
-                                </label>
-                                <input
-                                    id="password"
-                                    type="password"
-                                    value={password}
-                                    onChange={(event) => setPassword(event.target.value)}
-                                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                                    placeholder="Minimo 8 caracteres"
-                                    disabled={isSubmitting}
-                                    minLength={8}
-                                    required
-                                />
+                        {!showRegistrationFields ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    void validateEmail();
+                                }}
+                                disabled={isValidatingEmail || isSubmitting}
+                                className="w-full rpg-button"
+                            >
+                                {isValidatingEmail ? "Validando email..." : "Validar Email"}
+                            </button>
+                        ) : null}
+
+                        {showRegistrationFields ? (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: "#fff6e9" }}>
+                                        Nome Completo
+                                    </label>
+                                    <div className="relative">
+                                        <User className="absolute left-3 top-3.5 w-4 h-4 text-purple-400" />
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={(event) => setName(event.target.value)}
+                                            className="input-8bit pl-10 w-full"
+                                            placeholder="Seu nome completo"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: "#fff6e9" }}>
+                                        Senha
+                                    </label>
+                                    <div className="relative">
+                                        <Shield className="absolute left-3 top-3.5 w-4 h-4 text-purple-400" />
+                                        <input
+                                            type="password"
+                                            value={password}
+                                            onChange={(event) => setPassword(event.target.value)}
+                                            className="input-8bit pl-10 w-full"
+                                            placeholder="Minimo 8 caracteres"
+                                            minLength={8}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2" style={{ color: "#fff6e9" }}>
+                                        Confirmar Senha
+                                    </label>
+                                    <div className="relative">
+                                        <Shield className="absolute left-3 top-3.5 w-4 h-4 text-purple-400" />
+                                        <input
+                                            type="password"
+                                            value={confirmPassword}
+                                            onChange={(event) => setConfirmPassword(event.target.value)}
+                                            className="input-8bit pl-10 w-full"
+                                            placeholder="Confirme sua senha"
+                                            minLength={8}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting || isValidatingEmail}
+                                    className="w-full rpg-button"
+                                >
+                                    {isSubmitting ? "Criando conta..." : "Criar Conta"}
+                                </button>
+                            </>
+                        ) : null}
+
+                        {error ? (
+                            <div className="p-3 rounded-md text-sm bg-red-900/30 border border-red-500/50 text-red-300 flex items-start gap-2">
+                                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <span>{error}</span>
                             </div>
+                        ) : null}
 
-                            <div className="space-y-1">
-                                <label htmlFor="confirmPassword" className="text-sm font-medium text-zinc-700">
-                                    Confirmar senha
-                                </label>
-                                <input
-                                    id="confirmPassword"
-                                    type="password"
-                                    value={confirmPassword}
-                                    onChange={(event) => setConfirmPassword(event.target.value)}
-                                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                                    placeholder="Repita sua senha"
-                                    disabled={isSubmitting}
-                                    minLength={8}
-                                    required
-                                />
+                        {success ? (
+                            <div className="p-3 rounded-md text-sm bg-green-900/30 border border-green-500/50 text-green-300 flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <span>{success}</span>
                             </div>
-                        </>
-                    ) : null}
+                        ) : null}
 
-                    {error ? (
-                        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-                    ) : null}
+                        {existingUser ? (
+                            <div className="text-center">
+                                <button
+                                    type="button"
+                                    onClick={() => router.push("/auth/signin")}
+                                    className="text-purple-400 hover:text-purple-300 text-sm underline transition-colors"
+                                >
+                                    Ir para login
+                                </button>
+                            </div>
+                        ) : null}
 
-                    {message ? (
-                        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                            {message}
+                        {showHelpContact ? (
+                            <div className="text-center p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
+                                <p className="text-sm mb-3" style={{ color: "#fff6e9", opacity: 0.9 }}>
+                                    Precisa de ajuda para validar seu email?
+                                </p>
+                                <a
+                                    href="https://wa.me/5511968943004"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center text-green-400 hover:text-green-300 text-sm font-medium transition-colors"
+                                >
+                                    📱 Falar no WhatsApp
+                                </a>
+                            </div>
+                        ) : null}
+                    </form>
+
+                    <div className="mt-6 text-center">
+                        <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
+                            Ja tem conta?{" "}
+                            <Link href="/auth/signin" className="text-purple-400 hover:text-purple-300 transition-colors">
+                                Fazer login
+                            </Link>
                         </p>
-                    ) : null}
-
-                    <button
-                        type="submit"
-                        className="w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={isSubmitting || isValidatingEmail || !emailValidated}
-                    >
-                        {isSubmitting ? "Criando conta..." : "Criar conta"}
-                    </button>
-                </form>
-
-                <p className="mt-5 text-sm text-zinc-600">
-                    Ja tem conta?{" "}
-                    <Link href="/auth/signin" className="font-medium text-zinc-900 hover:underline">
-                        Fazer login
-                    </Link>
-                </p>
-            </section>
-        </main>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }

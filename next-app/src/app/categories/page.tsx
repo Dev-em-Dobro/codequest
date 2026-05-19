@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, Code, Gem, Shield, Star, Sword, Trophy, Zap } from "lucide-react";
+import { Header } from "@/components/layout/header";
+import { GlowCard } from "@/components/ui/spotlight-card";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 
@@ -9,9 +12,7 @@ type ExerciseCategory = "html" | "css" | "javascript";
 
 type Exercise = {
     id: string;
-    title: string;
     category: ExerciseCategory;
-    difficulty: "iniciante" | "intermediario" | "avancado";
     points: number;
 };
 
@@ -21,154 +22,250 @@ type UserProgress = {
     pointsEarned: number;
 };
 
-type CategoryCard = {
+type GuildInfo = {
     id: ExerciseCategory;
+    name: string;
     title: string;
     description: string;
     route: string;
+    icon: typeof Sword;
+    glowColor: "orange" | "blue" | "green";
 };
 
-const categoryCards: CategoryCard[] = [
+const guildsBase: GuildInfo[] = [
     {
         id: "html",
-        title: "HTML",
-        description: "Estrutura e semantica para construir paginas web.",
+        name: "Exercicios HTML",
+        title: "Construtores de Estruturas",
+        description: "Domine as artes fundamentais da construcao web",
         route: "/exercises/html",
+        icon: Sword,
+        glowColor: "orange",
     },
     {
         id: "css",
-        title: "CSS",
-        description: "Estilizacao e layout para interfaces modernas.",
+        name: "Exercicios CSS",
+        title: "Artistas da Estilizacao",
+        description: "Transforme estruturas em obras de arte visual",
         route: "/exercises/css",
+        icon: Shield,
+        glowColor: "blue",
     },
     {
         id: "javascript",
-        title: "JavaScript",
-        description: "Interatividade, logica e comportamento da aplicacao.",
+        name: "Exercicios JavaScript",
+        title: "Magos da Interatividade",
+        description: "Invoque poderes magicos de interacao e logica",
         route: "/exercises/javascript",
+        icon: Zap,
+        glowColor: "green",
     },
 ];
 
 export default function CategoriesPage() {
-    const { isAuthenticated } = useAuth();
-    const showAuthHint = !isAuthenticated;
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
 
     const exercisesQuery = useQuery({
         queryKey: ["/api/exercises"],
         queryFn: () => apiClient<Exercise[]>("/exercises"),
+        enabled: isAuthenticated && !authLoading,
         staleTime: 5 * 60 * 1000,
+        placeholderData: [],
     });
 
     const progressQuery = useQuery({
         queryKey: ["/api/progress"],
         queryFn: () => apiClient<UserProgress[]>("/progress"),
-        enabled: isAuthenticated,
-        staleTime: 60 * 1000,
+        enabled: isAuthenticated && !authLoading,
+        staleTime: 2 * 60 * 1000,
+        placeholderData: [],
     });
 
     const exercises = exercisesQuery.data ?? [];
     const progress = progressQuery.data ?? [];
-    const completedProgress = progress.filter((entry) => entry.completed);
+    const completedExercises = progress.filter((entry) => entry.completed);
 
-    const statsByCategory = categoryCards.map((category) => {
-        const categoryExercises = exercises.filter((exercise) => exercise.category === category.id);
-        const completedInCategory = completedProgress.filter((entry) =>
-            categoryExercises.some((exercise) => exercise.id === entry.exerciseId),
-        );
-
-        const totalExercises = categoryExercises.length;
-        const completedCount = completedInCategory.length;
-        const completionPercentage = totalExercises > 0 ? Math.round((completedCount / totalExercises) * 100) : 0;
-        const totalPoints = categoryExercises.reduce((accumulator, exercise) => accumulator + Number(exercise.points || 0), 0);
+    const guilds = guildsBase.map((guild) => {
+        const guildExercises = exercises.filter((exercise) => exercise.category === guild.id);
+        const completed = completedExercises.filter((item) =>
+            guildExercises.some((exercise) => exercise.id === item.exerciseId),
+        ).length;
+        const totalPoints = guildExercises.reduce((sum, exercise) => sum + Number(exercise.points || 0), 0);
 
         return {
-            ...category,
-            totalExercises,
-            completedCount,
-            completionPercentage,
+            ...guild,
+            total: guildExercises.length,
+            completed,
             totalPoints,
+            percentage: guildExercises.length > 0 ? Math.round((completed / guildExercises.length) * 100) : 0,
         };
     });
 
-    const isLoading = exercisesQuery.isLoading || (isAuthenticated && progressQuery.isLoading);
-    const hasError = exercisesQuery.isError || progressQuery.isError;
+    const totalExercises = exercises.length;
+    const totalCompleted = completedExercises.length;
+    const totalPoints = exercises.reduce((sum, exercise) => sum + Number(exercise.points || 0), 0);
 
-    if (isLoading) {
+    if (exercisesQuery.isLoading && isAuthenticated) {
         return (
-            <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 text-zinc-900">
-                <div className="rounded-xl border border-zinc-200 bg-white px-6 py-4 text-sm text-zinc-600 shadow-sm">
-                    Carregando categorias...
-                </div>
-            </main>
-        );
-    }
-
-    if (hasError) {
-        return (
-            <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 text-zinc-900">
-                <div className="w-full max-w-xl rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm">
-                    Nao foi possivel carregar os dados das categorias.
-                </div>
-            </main>
+            <div className="min-h-screen bg-black">
+                <Header />
+                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="animate-pulse space-y-6">
+                        <div className="h-8 bg-zinc-700 rounded w-64" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="h-64 bg-zinc-800 rounded-lg" />
+                            <div className="h-64 bg-zinc-800 rounded-lg" />
+                            <div className="h-64 bg-zinc-800 rounded-lg" />
+                        </div>
+                    </div>
+                </main>
+            </div>
         );
     }
 
     return (
-        <main className="min-h-screen bg-zinc-50 px-4 py-10 text-zinc-900">
-            <div className="mx-auto w-full max-w-5xl space-y-6">
-                <header className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                    <h1 className="text-2xl font-semibold tracking-tight">Categorias de Exercicios</h1>
-                    <p className="mt-2 text-sm text-zinc-600">
-                        Explore os trilhos de estudo e acompanhe seu progresso por tecnologia.
-                    </p>
-                    {showAuthHint ? (
-                        <p className="mt-3 text-sm text-zinc-500">
-                            Faca login para ver seu progresso completo por categoria.
+        <div className="min-h-screen bg-black">
+            <Header />
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="text-center mb-12">
+                    <div className="mb-6 flex justify-center">
+                        <span className="relative overflow-hidden inline-block bg-[#1a1a1a] border border-gray-700 text-[#0CF2A0] px-3 py-0.5 rounded-full text-[10px] sm:text-xs font-medium cursor-pointer hover:border-[#0CF2A0]/50 transition-colors">
+                            ✨ Powered by DevQuest AI
+                            <span
+                                style={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    background: "linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent)",
+                                    animation: "shine 2s linear infinite",
+                                    opacity: 0.5,
+                                    pointerEvents: "none",
+                                }}
+                            />
+                        </span>
+                    </div>
+
+                    <div className="mb-8">
+                        <h1 className="text-3xl lg:text-4xl text-white font-bold">Plataforma de Exercicios</h1>
+                    </div>
+
+                    <div className="relative mb-6">
+                        <p className="relative z-10 text-lg max-w-[500px] mx-auto leading-relaxed text-slate-400">
+                            Pratique programacao com exercicios interativos e conquiste pontos para se tornar um dev lendario
                         </p>
-                    ) : null}
-                </header>
+                    </div>
 
-                <section className="grid gap-4 md:grid-cols-3">
-                    {statsByCategory.map((category) => (
-                        <article key={category.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-                            <h2 className="text-lg font-semibold tracking-tight">{category.title}</h2>
-                            <p className="mt-2 text-sm text-zinc-600">{category.description}</p>
-
-                            <div className="mt-4 space-y-2 text-sm">
-                                <p className="text-zinc-700">
-                                    Exercicios: <strong>{category.completedCount}</strong> / {category.totalExercises}
-                                </p>
-                                <p className="text-zinc-700">
-                                    Progresso: <strong>{category.completionPercentage}%</strong>
-                                </p>
-                                <p className="text-zinc-700">
-                                    Pontos disponiveis: <strong>{category.totalPoints}</strong>
-                                </p>
-                            </div>
-
-                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-200">
-                                <div
-                                    className="h-full rounded-full bg-zinc-900 transition-all"
-                                    style={{ width: `${category.completionPercentage}%` }}
+                    <div className="flex justify-center items-center gap-4 mb-8">
+                        <div className="h-px bg-gradient-to-r from-transparent via-purple-500 to-transparent w-32" />
+                        <div className="p-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg">
+                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path
+                                    fillRule="evenodd"
+                                    d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+                                    clipRule="evenodd"
                                 />
-                            </div>
-
-                            <Link
-                                href={category.route}
-                                className="mt-5 inline-block text-sm font-medium text-zinc-800 hover:underline"
-                            >
-                                Ver exercicios
-                            </Link>
-                        </article>
-                    ))}
-                </section>
-
-                <div>
-                    <Link href="/" className="text-sm font-medium text-zinc-700 hover:underline">
-                        Voltar para inicio
-                    </Link>
+                            </svg>
+                        </div>
+                        <div className="h-px bg-gradient-to-r from-transparent via-purple-500 to-transparent w-32" />
+                    </div>
                 </div>
-            </div>
-        </main>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                    <GlowCard glowColor="blue" customSize className="flex flex-col min-h-[150px]">
+                        <div className="flex items-center space-x-4 h-full">
+                            <div className="p-3 rounded-xl bg-blue-500/20">
+                                <Trophy className="w-8 h-8 text-blue-300" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-300">Total de Exercicios</p>
+                                <p className="text-3xl font-bold text-white number">{totalExercises}</p>
+                            </div>
+                        </div>
+                    </GlowCard>
+
+                    <GlowCard glowColor="green" customSize className="flex flex-col min-h-[150px]">
+                        <div className="flex items-center space-x-4 h-full">
+                            <div className="p-3 rounded-xl bg-green-500/20">
+                                <Star className="w-8 h-8 text-green-300" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-300">Exercicios Completados</p>
+                                <p className="text-3xl font-bold text-white number">{totalCompleted}</p>
+                            </div>
+                        </div>
+                    </GlowCard>
+
+                    <GlowCard glowColor="purple" customSize className="flex flex-col min-h-[150px]">
+                        <div className="flex items-center space-x-4 h-full">
+                            <div className="p-3 rounded-xl bg-purple-500/20">
+                                <Code className="w-8 h-8 text-purple-300" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-300">Pontos Disponiveis</p>
+                                <p className="text-3xl font-bold text-white number">{totalPoints}</p>
+                            </div>
+                        </div>
+                    </GlowCard>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+                    {guilds.map((guild) => (
+                        <GlowCard key={guild.id} glowColor={guild.glowColor} customSize className="flex flex-col min-h-[500px]">
+                            <div className="flex flex-col h-full gap-8">
+                                <div className="text-center pb-4 mb-4">
+                                    <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl bg-gradient-to-br from-purple-500 to-purple-700">
+                                        <guild.icon className="text-white w-10 h-10" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-white mb-2">{guild.name}</h3>
+                                    <p className="text-sm text-slate-300">{guild.description}</p>
+                                </div>
+
+                                <div className="flex-1 space-y-4">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm text-slate-300">
+                                            <span>Progresso</span>
+                                            <span>
+                                                <span className="number">{guild.percentage}</span>% Completo
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-black/30 rounded-full h-3 border border-white/20 overflow-hidden">
+                                            <div
+                                                className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-500"
+                                                style={{ width: `${guild.percentage}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 text-center">
+                                        <div className="bg-black/20 rounded-lg p-3 border border-white/10">
+                                            <div className="text-2xl font-bold text-white number">{guild.completed}</div>
+                                            <div className="text-xs text-slate-300">Exercicios Completos</div>
+                                        </div>
+                                        <div className="bg-black/20 rounded-lg p-3 border border-white/10">
+                                            <div className="text-2xl font-bold text-white number">{guild.total}</div>
+                                            <div className="text-xs text-slate-300">Total de Exercicios</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-center space-x-2 bg-amber-500/20 rounded-lg p-3 border border-amber-400/30">
+                                        <Gem className="w-5 h-5 text-amber-300" />
+                                        <span className="text-sm font-bold text-amber-200">
+                                            Ate <span className="number">{guild.totalPoints}</span> XP para conquistar
+                                        </span>
+                                    </div>
+
+                                    <Link href={guild.route} className="block">
+                                        <button type="button" className="w-full rpg-button group">
+                                            Exercicios
+                                            <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                        </button>
+                                    </Link>
+                                </div>
+                            </div>
+                        </GlowCard>
+                    ))}
+                </div>
+            </main>
+        </div>
     );
 }

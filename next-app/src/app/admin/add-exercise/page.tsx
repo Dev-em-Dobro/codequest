@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { ArrowLeft, CheckCircle2, Home, Plus, RefreshCw, Shield } from "lucide-react";
+import { Header } from "@/components/layout/header";
+import { GlowCard } from "@/components/ui/spotlight-card";
 import { apiClient } from "@/lib/api-client";
 
 type CreateExercisePayload = {
@@ -66,7 +69,7 @@ export default function AdminAddExercisePage() {
         },
     });
 
-    const handleSubmit = (event: { preventDefault: () => void }) => {
+    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setError(null);
         setMessage(null);
@@ -88,64 +91,108 @@ export default function AdminAddExercisePage() {
     };
 
     return (
-        <main className="min-h-screen bg-zinc-50 px-4 py-10 text-zinc-900">
-            <div className="mx-auto w-full max-w-4xl space-y-6">
-                <header className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                    <h1 className="text-2xl font-semibold tracking-tight">Admin: adicionar exercicio</h1>
-                    <p className="mt-2 text-sm text-zinc-600">
-                        Cole ou edite um JSON de exercicio e envie para a API administrativa.
-                    </p>
-                </header>
+        <div className="min-h-screen bg-black">
+            <Header />
 
-                <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                    <form className="space-y-4" onSubmit={handleSubmit}>
-                        <label htmlFor="exercise-json" className="block text-sm font-medium text-zinc-700">
-                            Payload JSON
-                        </label>
-                        <textarea
-                            id="exercise-json"
-                            value={jsonInput}
-                            onChange={(event) => setJsonInput(event.target.value)}
-                            rows={22}
-                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-xs outline-none ring-zinc-900/10 focus:ring"
-                        />
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="flex items-center space-x-2 text-sm mb-6" style={{ color: "#fff6e9" }}>
+                    <Link href="/" className="hover:text-purple-400 transition-colors flex items-center">
+                        <Home className="w-4 h-4 mr-1" />
+                        Inicio
+                    </Link>
+                    <span>/</span>
+                    <Link href="/categories" className="hover:text-purple-400 transition-colors">
+                        Categorias
+                    </Link>
+                    <span>/</span>
+                    <span className="text-purple-400">Painel Admin</span>
+                </div>
+
+                <div className="text-center mb-8">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/20 border border-red-500/30 mb-4">
+                        <Shield className="w-4 h-4 text-red-400" />
+                        <span className="text-sm font-bold text-red-300">AREA ADMINISTRATIVA</span>
+                    </div>
+                    <h1 className="text-3xl lg:text-4xl font-bold mb-3" style={{ color: "#fff6e9" }}>
+                        Adicionar Novo Exercicio
+                    </h1>
+                    <p className="text-lg" style={{ color: "#fff6e9", opacity: 0.8 }}>
+                        Crie novas quests para os aventureiros da plataforma
+                    </p>
+                </div>
+
+                <GlowCard glowColor="purple" customSize className="p-8 mb-6">
+                    <form className="space-y-6" onSubmit={handleSubmit}>
+                        <div>
+                            <label htmlFor="exercise-json" className="block text-sm font-bold mb-3" style={{ color: "#fff6e9" }}>
+                                Payload JSON do Exercicio
+                            </label>
+                            <textarea
+                                id="exercise-json"
+                                value={jsonInput}
+                                onChange={(event) => setJsonInput(event.target.value)}
+                                rows={24}
+                                className="input-8bit w-full font-mono text-xs"
+                            />
+                        </div>
 
                         {error ? (
-                            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+                            <div className="p-4 rounded-lg border bg-red-900/20 border-red-500/50 text-red-300 flex items-start gap-2">
+                                <span className="font-bold">Erro:</span>
+                                <span>{error}</span>
+                            </div>
                         ) : null}
 
                         {message ? (
-                            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                                {message}
-                            </p>
+                            <div className="p-4 rounded-lg border bg-green-900/20 border-green-500/50 text-green-300 flex items-start gap-2">
+                                <CheckCircle2 className="w-5 h-5 mt-0.5" />
+                                <span>{message}</span>
+                            </div>
                         ) : null}
 
-                        <div className="flex flex-wrap gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <button
                                 type="submit"
                                 disabled={createExerciseMutation.isPending}
-                                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="rpg-button flex items-center justify-center"
                             >
-                                {createExerciseMutation.isPending ? "Criando..." : "Criar exercicio"}
+                                {createExerciseMutation.isPending ? (
+                                    <>
+                                        <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Criando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Criar Exercicio
+                                    </>
+                                )}
                             </button>
 
                             <button
                                 type="button"
-                                onClick={() => setJsonInput(JSON.stringify(examplePayload, null, 2))}
-                                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                                onClick={() => {
+                                    setJsonInput(JSON.stringify(examplePayload, null, 2));
+                                    setError(null);
+                                    setMessage(null);
+                                }}
+                                className="border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded-md px-4 py-2 text-sm font-semibold transition-colors flex items-center justify-center"
                             >
-                                Restaurar exemplo
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Restaurar Exemplo
                             </button>
+
+                            <Link
+                                href="/"
+                                className="border border-zinc-500/40 bg-zinc-700/20 hover:bg-zinc-700/35 text-zinc-200 rounded-md px-4 py-2 text-sm font-semibold transition-colors flex items-center justify-center"
+                            >
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                Voltar ao Inicio
+                            </Link>
                         </div>
                     </form>
-                </section>
-
-                <div>
-                    <Link href="/" className="text-sm font-medium text-zinc-700 hover:underline">
-                        Voltar para inicio
-                    </Link>
-                </div>
-            </div>
-        </main>
+                </GlowCard>
+            </main>
+        </div>
     );
 }

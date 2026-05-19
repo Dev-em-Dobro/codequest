@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, ChevronRight, Code2, Home, Lightbulb, Save, Send, Sparkles, Target } from "lucide-react";
+import { Header } from "@/components/layout/header";
+import { GlowCard } from "@/components/ui/spotlight-card";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -74,14 +77,14 @@ function emptyCode(): CodeTriplet {
 
 function statusClass(tone: StatusMessage["tone"]): string {
     if (tone === "success") {
-        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+        return "border-emerald-500/40 bg-emerald-900/20 text-emerald-300";
     }
 
     if (tone === "error") {
-        return "border-red-200 bg-red-50 text-red-700";
+        return "border-red-500/40 bg-red-900/20 text-red-300";
     }
 
-    return "border-blue-200 bg-blue-50 text-blue-700";
+    return "border-blue-500/40 bg-blue-900/20 text-blue-300";
 }
 
 type ExerciseDetailContentProps = Readonly<{
@@ -125,164 +128,248 @@ function ExerciseDetailContent({
     completePending,
     statusMessage,
 }: ExerciseDetailContentProps) {
-    return (
-        <main className="min-h-screen bg-zinc-50 px-4 py-8 text-zinc-900">
-            <div className="mx-auto w-full max-w-6xl space-y-6">
-                <header className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                    <h1 className="text-2xl font-semibold tracking-tight">{exercise.title}</h1>
-                    <p className="mt-2 text-sm text-zinc-600">{exercise.description}</p>
+    const previewDocument = useMemo(() => {
+        return `
+            <html>
+                <head>
+                    <style>
+                        body {
+                            margin: 0;
+                            min-height: 100vh;
+                            background: #0b0b12;
+                            font-family: Arial, sans-serif;
+                        }
+                        ${code.css}
+                    </style>
+                </head>
+                <body>
+                    ${code.html}
+                    <script>
+                        try {
+                            ${code.javascript}
+                        } catch (error) {
+                            console.error(error);
+                        }
+                    </script>
+                </body>
+            </html>
+        `;
+    }, [code.css, code.html, code.javascript]);
 
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full border border-zinc-200 px-2 py-1 text-zinc-700">{exercise.category.toUpperCase()}</span>
-                        <span className="rounded-full border border-zinc-200 px-2 py-1 text-zinc-700">{exercise.difficulty}</span>
-                        <span className="rounded-full border border-zinc-200 px-2 py-1 text-zinc-700">{exercise.points} pts</span>
-                        {progressCompleted ? (
-                            <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-emerald-700">Concluido</span>
-                        ) : null}
+    return (
+        <div className="min-h-screen bg-black">
+            <Header />
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="flex items-center space-x-2 text-sm mb-6" style={{ color: "#fff6e9" }}>
+                    <Link href="/" className="hover:text-purple-400 transition-colors flex items-center">
+                        <Home className="w-4 h-4 mr-1" />
+                        Inicio
+                    </Link>
+                    <ChevronRight className="w-4 h-4 text-zinc-600" />
+                    <Link href={`/exercises/${exercise.category}`} className="hover:text-purple-400 transition-colors">
+                        {exercise.category.toUpperCase()}
+                    </Link>
+                    <ChevronRight className="w-4 h-4 text-zinc-600" />
+                    <span className="text-purple-400">{exercise.title}</span>
+                </div>
+
+                <GlowCard glowColor="purple" customSize className="p-6 mb-8">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <h1 className="text-2xl lg:text-3xl font-bold text-white">{exercise.title}</h1>
+                            <p className="mt-2 text-sm text-slate-300">{exercise.description}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="rounded-full border border-purple-500/40 bg-purple-500/20 px-2 py-1 text-purple-200">
+                                {exercise.category.toUpperCase()}
+                            </span>
+                            <span className="rounded-full border border-blue-500/40 bg-blue-500/20 px-2 py-1 text-blue-200">
+                                {exercise.difficulty}
+                            </span>
+                            <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-amber-200 number">
+                                {exercise.points} XP
+                            </span>
+                            {progressCompleted ? (
+                                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-1 text-emerald-200">
+                                    Concluido
+                                </span>
+                            ) : null}
+                        </div>
                     </div>
 
                     {showAuthHint ? (
-                        <p className="mt-3 text-sm text-zinc-500">
+                        <div className="mt-4 rounded-lg border border-blue-500/30 bg-blue-900/20 p-3 text-sm text-blue-200">
                             Faca login para salvar codigo, acompanhar progresso e concluir este exercicio.
-                        </p>
-                    ) : null}
-                </header>
-
-                <section className="grid gap-4 lg:grid-cols-2">
-                    <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-semibold tracking-tight">Instrucoes</h2>
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-700">{exercise.instructions}</p>
-
-                        {hintText ? (
-                            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{hintText}</div>
-                        ) : null}
-
-                        {reviewData ? (
-                            <div className="mt-4 space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-                                <p>
-                                    <strong>Feedback IA:</strong> {reviewData.feedback}
-                                </p>
-                                {reviewData.suggestions.length > 0 ? (
-                                    <ul className="list-disc space-y-1 pl-5">
-                                        {reviewData.suggestions.map((suggestion) => (
-                                            <li key={suggestion}>{suggestion}</li>
-                                        ))}
-                                    </ul>
-                                ) : null}
-                            </div>
-                        ) : null}
-                    </article>
-
-                    <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-                        <h2 className="text-lg font-semibold tracking-tight">Codigo</h2>
-                        <div className="mt-3 space-y-3">
-                            <div>
-                                <label htmlFor="html" className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-600">
-                                    HTML
-                                </label>
-                                <textarea
-                                    id="html"
-                                    value={code.html}
-                                    onChange={(event) => onCodeChange("html", event.target.value)}
-                                    rows={6}
-                                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-xs outline-none ring-zinc-900/10 focus:ring"
-                                />
-                            </div>
-
-                            <div>
-                                <label htmlFor="css" className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-600">
-                                    CSS
-                                </label>
-                                <textarea
-                                    id="css"
-                                    value={code.css}
-                                    onChange={(event) => onCodeChange("css", event.target.value)}
-                                    rows={6}
-                                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-xs outline-none ring-zinc-900/10 focus:ring"
-                                />
-                            </div>
-
-                            <div>
-                                <label htmlFor="javascript" className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-600">
-                                    JavaScript
-                                </label>
-                                <textarea
-                                    id="javascript"
-                                    value={code.javascript}
-                                    onChange={(event) => onCodeChange("javascript", event.target.value)}
-                                    rows={6}
-                                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-xs outline-none ring-zinc-900/10 focus:ring"
-                                />
-                            </div>
                         </div>
-                    </article>
-                </section>
+                    ) : null}
+                </GlowCard>
 
-                <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            type="button"
-                            onClick={onSave}
-                            disabled={savePending}
-                            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {savePending ? "Salvando..." : "Salvar codigo"}
-                        </button>
+                <div className="grid gap-6 lg:grid-cols-3">
+                    <div className="lg:col-span-1 space-y-6">
+                        <GlowCard glowColor="blue" customSize className="p-5">
+                            <h2 className="text-lg font-semibold text-white flex items-center">
+                                <Target className="w-5 h-5 mr-2 text-blue-400" />
+                                Instrucoes
+                            </h2>
+                            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-200">{exercise.instructions}</p>
 
-                        <button
-                            type="button"
-                            onClick={onValidate}
-                            disabled={validatePending}
-                            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {validatePending ? "Validando..." : "Validar"}
-                        </button>
+                            {hintText ? (
+                                <div className="mt-4 rounded-lg border border-blue-500/30 bg-blue-900/20 p-3 text-sm text-blue-200">
+                                    <div className="font-semibold mb-1 flex items-center">
+                                        <Lightbulb className="w-4 h-4 mr-1" />
+                                        Dica da IA
+                                    </div>
+                                    {hintText}
+                                </div>
+                            ) : null}
 
-                        <button
-                            type="button"
-                            onClick={onHint}
-                            disabled={hintPending}
-                            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {hintPending ? "Gerando dica..." : "Pedir dica IA"}
-                        </button>
+                            {reviewData ? (
+                                <div className="mt-4 space-y-2 rounded-lg border border-zinc-700 bg-zinc-900/60 p-3 text-sm text-zinc-200">
+                                    <p>
+                                        <strong>Feedback IA:</strong> {reviewData.feedback}
+                                    </p>
+                                    {reviewData.suggestions.length > 0 ? (
+                                        <ul className="list-disc space-y-1 pl-5">
+                                            {reviewData.suggestions.map((suggestion) => (
+                                                <li key={suggestion}>{suggestion}</li>
+                                            ))}
+                                        </ul>
+                                    ) : null}
+                                </div>
+                            ) : null}
+                        </GlowCard>
 
-                        <button
-                            type="button"
-                            onClick={onReview}
-                            disabled={reviewPending}
-                            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {reviewPending ? "Revisando..." : "Revisar com IA"}
-                        </button>
+                        <GlowCard glowColor="orange" customSize className="p-5">
+                            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                                <Sparkles className="w-5 h-5 mr-2 text-orange-300" />
+                                Acoes
+                            </h3>
 
-                        <button
-                            type="button"
-                            onClick={onComplete}
-                            disabled={completePending || progressCompleted}
-                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {completePending ? "Concluindo..." : "Marcar como concluido"}
-                        </button>
+                            <div className="grid gap-2">
+                                <button
+                                    type="button"
+                                    onClick={onSave}
+                                    disabled={savePending}
+                                    className="rpg-button flex items-center justify-center"
+                                >
+                                    <Save className="w-4 h-4 mr-2" />
+                                    {savePending ? "Salvando..." : "Salvar Codigo"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={onValidate}
+                                    disabled={validatePending}
+                                    className="rpg-button flex items-center justify-center"
+                                >
+                                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                                    {validatePending ? "Validando..." : "Validar"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={onHint}
+                                    disabled={hintPending}
+                                    className="rpg-button flex items-center justify-center"
+                                >
+                                    <Lightbulb className="w-4 h-4 mr-2" />
+                                    {hintPending ? "Gerando dica..." : "Pedir Dica IA"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={onReview}
+                                    disabled={reviewPending}
+                                    className="rpg-button flex items-center justify-center"
+                                >
+                                    <Code2 className="w-4 h-4 mr-2" />
+                                    {reviewPending ? "Revisando..." : "Revisar com IA"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={onComplete}
+                                    disabled={completePending || progressCompleted}
+                                    className="rpg-button flex items-center justify-center disabled:opacity-50"
+                                >
+                                    <Send className="w-4 h-4 mr-2" />
+                                    {completePending ? "Concluindo..." : progressCompleted ? "Ja Concluido" : "Concluir Exercicio"}
+                                </button>
+                            </div>
+
+                            {statusMessage ? (
+                                <p className={`mt-4 rounded-lg border px-3 py-2 text-sm ${statusClass(statusMessage.tone)}`}>
+                                    {statusMessage.text}
+                                </p>
+                            ) : null}
+                        </GlowCard>
                     </div>
 
-                    {statusMessage ? (
-                        <p className={`mt-4 rounded-lg border px-3 py-2 text-sm ${statusClass(statusMessage.tone)}`}>
-                            {statusMessage.text}
-                        </p>
-                    ) : null}
-                </section>
+                    <div className="lg:col-span-2 space-y-6">
+                        <GlowCard glowColor="purple" customSize className="p-5">
+                            <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+                                <Code2 className="w-5 h-5 mr-2 text-purple-300" />
+                                Codigo
+                            </h2>
+                            <div className="grid gap-3">
+                                <div>
+                                    <label htmlFor="html" className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">
+                                        HTML
+                                    </label>
+                                    <textarea
+                                        id="html"
+                                        value={code.html}
+                                        onChange={(event) => onCodeChange("html", event.target.value)}
+                                        rows={6}
+                                        className="input-8bit w-full font-mono text-xs"
+                                    />
+                                </div>
 
-                <div className="flex gap-4 text-sm">
-                    <Link href="/exercise" className="font-medium text-zinc-700 hover:underline">
-                        Voltar para lista de exercicios
-                    </Link>
-                    <Link href="/categories" className="font-medium text-zinc-700 hover:underline">
-                        Ver categorias
-                    </Link>
+                                <div>
+                                    <label htmlFor="css" className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">
+                                        CSS
+                                    </label>
+                                    <textarea
+                                        id="css"
+                                        value={code.css}
+                                        onChange={(event) => onCodeChange("css", event.target.value)}
+                                        rows={6}
+                                        className="input-8bit w-full font-mono text-xs"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label htmlFor="javascript" className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">
+                                        JavaScript
+                                    </label>
+                                    <textarea
+                                        id="javascript"
+                                        value={code.javascript}
+                                        onChange={(event) => onCodeChange("javascript", event.target.value)}
+                                        rows={6}
+                                        className="input-8bit w-full font-mono text-xs"
+                                    />
+                                </div>
+                            </div>
+                        </GlowCard>
+
+                        <GlowCard glowColor="green" customSize className="p-5">
+                            <h2 className="text-lg font-semibold text-white mb-4">Preview ao Vivo</h2>
+                            <div className="rounded-lg border border-green-500/30 overflow-hidden bg-black min-h-[340px]">
+                                <iframe
+                                    title="Preview do exercicio"
+                                    srcDoc={previewDocument}
+                                    sandbox="allow-scripts"
+                                    className="w-full h-[340px] bg-white"
+                                />
+                            </div>
+                        </GlowCard>
+                    </div>
                 </div>
-            </div>
-        </main>
+            </main>
+        </div>
     );
 }
 
@@ -438,21 +525,27 @@ export default function ExerciseDetailPage() {
 
     if (exerciseQuery.isLoading) {
         return (
-            <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 text-zinc-900">
-                <div className="rounded-xl border border-zinc-200 bg-white px-6 py-4 text-sm text-zinc-600 shadow-sm">
-                    Carregando exercicio...
-                </div>
-            </main>
+            <div className="min-h-screen bg-black">
+                <Header />
+                <main className="max-w-4xl mx-auto px-4 py-12">
+                    <div className="rounded-xl border border-zinc-700 bg-zinc-900 px-6 py-4 text-sm text-zinc-300">
+                        Carregando exercicio...
+                    </div>
+                </main>
+            </div>
         );
     }
 
     if (exerciseQuery.isError || !exerciseQuery.data) {
         return (
-            <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 text-zinc-900">
-                <div className="w-full max-w-xl rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 shadow-sm">
-                    Nao foi possivel carregar este exercicio.
-                </div>
-            </main>
+            <div className="min-h-screen bg-black">
+                <Header />
+                <main className="max-w-4xl mx-auto px-4 py-12">
+                    <div className="w-full max-w-xl rounded-xl border border-red-500/40 bg-red-950/40 p-6 text-sm text-red-300">
+                        Nao foi possivel carregar este exercicio.
+                    </div>
+                </main>
+            </div>
         );
     }
 

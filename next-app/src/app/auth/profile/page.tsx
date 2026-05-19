@@ -1,8 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { CheckCircle2, ChevronRight, Crown, LogOut, Medal, Settings, Shield, Star, Trophy } from "lucide-react";
+import { Header } from "@/components/layout/header";
+import { GlowCard } from "@/components/ui/spotlight-card";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import type { AuthUser } from "@/lib/auth-client";
@@ -22,41 +27,143 @@ type UpdateUserResponse = {
     };
 };
 
-type ProfileFormProps = {
-    currentUser: AuthUser;
+type Exercise = {
+    points: number;
+};
+
+type RankingUser = {
+    id: string;
+    email?: string;
+    totalPoints: number;
+    completedExercises: number;
+};
+
+type AvatarOption = {
+    id: string;
+    name: string;
+    path: string;
+};
+
+type ProfileContentProps = {
+    user: AuthUser;
     onSignOut: () => Promise<void>;
     updateAuthUser: (user: AuthUser | null) => void;
 };
 
-function ProfileForm({ currentUser, onSignOut, updateAuthUser }: Readonly<ProfileFormProps>) {
-    const [name, setName] = useState(currentUser.name || "");
-    const [description, setDescription] = useState(currentUser.description || "");
-    const [avatar, setAvatar] = useState(currentUser.avatar || "");
-    const [github, setGithub] = useState(currentUser.github || "");
-    const [linkedin, setLinkedin] = useState(currentUser.linkedin || "");
-    const [isSaving, setIsSaving] = useState(false);
-    const [message, setMessage] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+const avatarOptions: AvatarOption[] = [
+    { id: "m1", name: "Guerreiro Arcano", path: "/avatars/rpg-male-1.JPG" },
+    { id: "m2", name: "Guardiao da Lua", path: "/avatars/rpg-male-2.JPG" },
+    { id: "m3", name: "Cacador de Sombras", path: "/avatars/rpg-male-3.JPG" },
+    { id: "f1", name: "Sacerdotisa", path: "/avatars/rpg-female-1.JPG" },
+    { id: "f2", name: "Arcanista", path: "/avatars/rpg-female-2.JPG" },
+    { id: "f3", name: "Rainha das Runas", path: "/avatars/rpg-female-3.JPG" },
+];
 
-    const handleSave = async (event: { preventDefault: () => void }) => {
+function getUserLevel(points: number) {
+    return Math.floor(points / 100) + 1;
+}
+
+function getProgressToNextLevel(points: number) {
+    const level = getUserLevel(points);
+    const currentLevelStart = (level - 1) * 100;
+    const nextThreshold = level * 100;
+    const progress = points - currentLevelStart;
+    const percentage = Math.round((progress / 100) * 100);
+
+    return {
+        nextThreshold,
+        percentage: Math.max(0, Math.min(100, percentage)),
+    };
+}
+
+function getUserRank(xpPercentage: number) {
+    if (xpPercentage >= 90) {
+        return { name: "Lenda Supreme", color: "#ff6b35", icon: Crown };
+    }
+    if (xpPercentage >= 70) {
+        return { name: "Mestre Arcano", color: "#9d4edd", icon: Trophy };
+    }
+    if (xpPercentage >= 50) {
+        return { name: "Guardiao Senior", color: "#4ecdc4", icon: Star };
+    }
+    if (xpPercentage >= 30) {
+        return { name: "Aventureiro", color: "#45b7d1", icon: Shield };
+    }
+    return { name: "Iniciante", color: "#95a5a6", icon: Medal };
+}
+
+function getUserInitials(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) {
+        return "U";
+    }
+
+    return trimmed
+        .split(" ")
+        .map((item) => item[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+}
+
+function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileContentProps>) {
+    const [name, setName] = useState(user.name || "");
+    const [description, setDescription] = useState(user.description || "");
+    const [selectedAvatar, setSelectedAvatar] = useState(user.avatar ? `/avatars/${user.avatar}` : "/avatars/rpg-male-1.JPG");
+    const [github, setGithub] = useState(user.github || "");
+    const [linkedin, setLinkedin] = useState(user.linkedin || "");
+    const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+    const [updateError, setUpdateError] = useState<string | null>(null);
+
+    const exercisesQuery = useQuery({
+        queryKey: ["/api/exercises"],
+        queryFn: () => apiClient<Exercise[]>("/exercises"),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const rankingQuery = useQuery({
+        queryKey: ["/api/users/ranking"],
+        queryFn: () => apiClient<RankingUser[]>("/users/ranking"),
+        staleTime: 60 * 1000,
+    });
+
+    const ranking = rankingQuery.data ?? [];
+    const rankingEntry = ranking.find((entry) => entry.id === user.id || (user.email && entry.email === user.email));
+
+    const totalAvailablePoints = (exercisesQuery.data ?? []).reduce((sum, exercise) => {
+        return sum + Number(exercise.points || 0);
+    }, 0);
+
+    const userPoints = rankingEntry?.totalPoints ?? user.points;
+    const completedExercises = rankingEntry?.completedExercises ?? 0;
+    const userLevel = getUserLevel(userPoints);
+    const progressInfo = getProgressToNextLevel(userPoints);
+    const rankPercentage = totalAvailablePoints > 0 ? Math.round((userPoints / totalAvailablePoints) * 100) : 0;
+    const userRank = getUserRank(rankPercentage);
+
+    const handleSave = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (!name.trim()) {
-            setError("Informe seu nome antes de salvar.");
+            setUpdateError("Informe seu nome antes de salvar.");
             return;
         }
 
-        setError(null);
-        setMessage(null);
-        setIsSaving(true);
+        setIsUpdating(true);
+        setUpdateMessage(null);
+        setUpdateError(null);
 
         try {
+            const avatarFile = selectedAvatar.split("/").pop() ?? "";
+
             const result = await apiClient<UpdateUserResponse>("/auth/update-user", {
                 method: "POST",
                 body: {
                     name: name.trim(),
                     description: description.trim(),
-                    avatar: avatar.trim(),
+                    avatar: avatarFile,
                     github: github.trim(),
                     linkedin: linkedin.trim(),
                 },
@@ -66,157 +173,362 @@ function ProfileForm({ currentUser, onSignOut, updateAuthUser }: Readonly<Profil
                 throw new Error("Resposta de perfil invalida");
             }
 
-            updateAuthUser({
+            const nextUser: AuthUser = {
                 id: result.user.id,
                 name: result.user.name || name.trim(),
-                email: result.user.email || currentUser.email,
-                points: Number(result.user.points || currentUser.points),
-                level: Number(result.user.level || Math.floor((result.user.points || currentUser.points) / 100) + 1),
+                email: result.user.email || user.email,
+                points: Number(result.user.points ?? user.points),
+                level: Number(result.user.level ?? getUserLevel(Number(result.user.points ?? user.points))),
                 description: result.user.description || description,
-                avatar: result.user.avatar || avatar,
+                avatar: result.user.avatar || avatarFile,
                 github: result.user.github || github,
                 linkedin: result.user.linkedin || linkedin,
-            });
+            };
 
-            setMessage("Perfil atualizado com sucesso.");
+            updateAuthUser(nextUser);
+            setUpdateMessage("Perfil atualizado com sucesso.");
         } catch (saveError) {
-            const saveMessage = saveError instanceof Error ? saveError.message : "Falha ao atualizar perfil";
-            setError(saveMessage);
+            const message = saveError instanceof Error ? saveError.message : "Falha ao atualizar perfil";
+            setUpdateError(message);
         } finally {
-            setIsSaving(false);
+            setIsUpdating(false);
         }
     };
 
     return (
-        <section className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">Meu perfil</h1>
-                    <p className="mt-2 text-sm text-zinc-600">Atualize seus dados para manter seu progresso identificado.</p>
+        <div className="min-h-screen bg-black">
+            <Header />
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <nav className="mb-4" aria-label="Breadcrumb">
+                    <ol className="flex items-center space-x-2 text-sm">
+                        <li>
+                            <Link href="/" className="flex items-center text-slate-400 hover:text-purple-400 transition-colors">
+                                Inicio
+                            </Link>
+                        </li>
+                        <ChevronRight className="w-4 h-4 text-slate-600" />
+                        <li>
+                            <span className="text-purple-400 font-medium">Perfil do Aventureiro</span>
+                        </li>
+                    </ol>
+                </nav>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <GlowCard glowColor="purple" customSize className="h-fit">
+                        <div className="p-6">
+                            <h1 className="text-2xl font-bold text-white mb-6">Dados do Usuario</h1>
+
+                            <form className="space-y-6" onSubmit={handleSave}>
+                                <div className="space-y-2">
+                                    <label className="text-white font-bold text-sm" htmlFor="profile-name">
+                                        Nome
+                                    </label>
+                                    <input
+                                        id="profile-name"
+                                        type="text"
+                                        value={name}
+                                        onChange={(event) => setName(event.target.value)}
+                                        disabled={isUpdating}
+                                        required
+                                        className="input-8bit w-full"
+                                        placeholder="Digite seu nome..."
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <span className="text-white font-bold text-sm">Avatar</span>
+                                    <div className="flex items-center space-x-3">
+                                        <div className="w-12 h-12 rounded-full border-2 border-purple-500/50 overflow-hidden bg-purple-900/20">
+                                            {selectedAvatar ? (
+                                                <Image src={selectedAvatar} alt="Avatar selecionado" width={48} height={48} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-white text-sm">
+                                                    {getUserInitials(name || "U")}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAvatarSelector(true)}
+                                            className="rpg-button px-4 py-2 text-sm"
+                                        >
+                                            Escolher Avatar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-white font-bold text-sm" htmlFor="profile-description">
+                                        Sobre
+                                    </label>
+                                    <textarea
+                                        id="profile-description"
+                                        value={description}
+                                        onChange={(event) => setDescription(event.target.value)}
+                                        disabled={isUpdating}
+                                        className="input-8bit w-full resize-none"
+                                        rows={4}
+                                        placeholder="Descreva seu personagem..."
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-white font-bold text-sm" htmlFor="profile-github">
+                                        GitHub
+                                    </label>
+                                    <input
+                                        id="profile-github"
+                                        type="text"
+                                        value={github}
+                                        onChange={(event) => setGithub(event.target.value)}
+                                        className="input-8bit w-full"
+                                        placeholder="usuario ou https://github.com/usuario"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-white font-bold text-sm" htmlFor="profile-linkedin">
+                                        LinkedIn
+                                    </label>
+                                    <input
+                                        id="profile-linkedin"
+                                        type="url"
+                                        value={linkedin}
+                                        onChange={(event) => setLinkedin(event.target.value)}
+                                        className="input-8bit w-full"
+                                        placeholder="https://linkedin.com/in/seu-perfil"
+                                    />
+                                </div>
+
+                                {updateError ? (
+                                    <div className="p-3 rounded-md text-sm bg-red-900/30 border border-red-500/50 text-red-300">
+                                        {updateError}
+                                    </div>
+                                ) : null}
+
+                                {updateMessage ? (
+                                    <div className="p-3 rounded-md text-sm bg-green-900/30 border border-green-500/50 text-green-300">
+                                        {updateMessage}
+                                    </div>
+                                ) : null}
+
+                                <div className="space-y-3">
+                                    <button
+                                        type="submit"
+                                        onClick={() => setUpdateMessage(null)}
+                                        disabled={isUpdating}
+                                        className="rpg-button w-full flex items-center justify-center"
+                                    >
+                                        {isUpdating ? (
+                                            <>
+                                                <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                Salvando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                                Salvar Perfil
+                                            </>
+                                        )}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void onSignOut();
+                                        }}
+                                        className="w-full border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-md px-4 py-2 text-sm font-semibold transition-colors flex items-center justify-center"
+                                    >
+                                        <LogOut className="w-4 h-4 mr-2" />
+                                        Sair da Conta
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </GlowCard>
+
+                    <div>
+                        <GlowCard glowColor="green" customSize className="h-fit">
+                            <div className="p-6">
+                                <div className="bg-black/50 border-2 border-purple-500/40 rounded-lg p-6 text-center space-y-4">
+                                    <div className="flex justify-center">
+                                        <div className="relative group">
+                                            <div className="w-24 h-24 rounded-full border-4 border-purple-500/50 overflow-hidden cursor-pointer transition-all hover:scale-105">
+                                                {selectedAvatar ? (
+                                                    <Image src={selectedAvatar} alt="Avatar do aventureiro" width={96} height={96} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full bg-purple-900/20 flex items-center justify-center text-2xl text-white">
+                                                        {getUserInitials(name || user.name)}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowAvatarSelector(true)}
+                                                className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Settings className="w-8 h-8 text-white" />
+                                            </button>
+
+                                            <div
+                                                className="absolute -bottom-2 -right-2 rounded-full p-1"
+                                                style={{ backgroundColor: userRank.color, boxShadow: `0 0 10px ${userRank.color}` }}
+                                            >
+                                                <userRank.icon className="w-6 h-6 text-black" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <h2 className="text-xl font-bold text-white">{name || user.name || "Aventureiro"}</h2>
+                                        <div
+                                            className="inline-flex items-center space-x-1 px-3 py-1 rounded-full font-bold text-sm"
+                                            style={{
+                                                border: `2px solid ${userRank.color}`,
+                                                boxShadow: `0 0 15px ${userRank.color}`,
+                                                color: userRank.color,
+                                                backgroundColor: "rgba(0, 0, 0, 0.25)",
+                                            }}
+                                        >
+                                            <userRank.icon className="w-4 h-4" />
+                                            <span>{userRank.name}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4 text-center">
+                                        <div className="space-y-1">
+                                            <span className="text-2xl font-bold text-white number">{userLevel}</span>
+                                            <p className="text-xs text-white">LVL</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <span className="text-2xl font-bold text-yellow-400 number">{userPoints}</span>
+                                            <p className="text-xs text-white">XP</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <span className="text-2xl font-bold text-green-400 number">{completedExercises}</span>
+                                            <p className="text-xs text-white">COMPLETADOS</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-xs text-white">
+                                            <span>Progresso para proximo nivel</span>
+                                            <span>{progressInfo.percentage}%</span>
+                                        </div>
+                                        <div className="w-full rounded-full h-3 overflow-hidden bg-zinc-900 border border-purple-500/20">
+                                            <div className="xp-bar h-full transition-all duration-1000" style={{ width: `${progressInfo.percentage}%` }} />
+                                        </div>
+                                        <div className="flex justify-between text-xs mt-1">
+                                            <span style={{ color: userRank.color }}>{userPoints} XP</span>
+                                            <span className="text-white opacity-60">Proximo: {progressInfo.nextThreshold} XP</span>
+                                        </div>
+                                    </div>
+
+                                    {(description || user.description) ? (
+                                        <div className="mt-4">
+                                            <p className="text-sm text-white italic">&quot;{description || user.description}&quot;</p>
+                                        </div>
+                                    ) : null}
+
+                                    {(github || linkedin) ? (
+                                        <div className="mt-3 pt-3 border-t border-zinc-700">
+                                            <div className="flex justify-center space-x-4 text-xs">
+                                                {github ? (
+                                                    <a
+                                                        href={github.startsWith("http") ? github : `https://github.com/${github}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-zinc-300 hover:text-purple-400 transition-colors"
+                                                    >
+                                                        GitHub
+                                                    </a>
+                                                ) : null}
+
+                                                {linkedin ? (
+                                                    <a
+                                                        href={linkedin}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-zinc-300 hover:text-blue-400 transition-colors"
+                                                    >
+                                                        LinkedIn
+                                                    </a>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </div>
+                        </GlowCard>
+                    </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => {
-                        void onSignOut();
+            </div>
+
+            {showAvatarSelector ? (
+                <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center"
+                    style={{ backgroundColor: "rgba(0, 0, 0, 0.8)", backdropFilter: "blur(8px)" }}
+                    onClick={(event) => {
+                        if (event.target === event.currentTarget) {
+                            setShowAvatarSelector(false);
+                        }
                     }}
-                    className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
                 >
-                    Sair
-                </button>
-            </div>
+                    <div
+                        className="w-full max-w-2xl mx-4 bg-black/95 rounded-lg border-2 p-6"
+                        style={{ borderColor: "#9d4edd", boxShadow: "0 0 30px rgba(157, 78, 221, 0.5)" }}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-white">Escolha seu Avatar</h3>
+                            <button
+                                type="button"
+                                onClick={() => setShowAvatarSelector(false)}
+                                className="text-white hover:bg-red-500/20 rounded-md px-2 py-1"
+                            >
+                                ?
+                            </button>
+                        </div>
 
-            <div className="mt-4 grid gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700 sm:grid-cols-2">
-                <p>
-                    <span className="font-medium">Email:</span> {currentUser.email}
-                </p>
-                <p>
-                    <span className="font-medium">Pontos:</span> {currentUser.points}
-                </p>
-            </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                            {avatarOptions.map((avatar) => (
+                                <button
+                                    key={avatar.id}
+                                    type="button"
+                                    className={`relative text-left cursor-pointer group transition-all duration-200 rounded-lg overflow-hidden border-2 ${selectedAvatar === avatar.path
+                                            ? "ring-2 ring-purple-500 scale-105 border-purple-500"
+                                            : "border-zinc-600 hover:border-purple-400 hover:scale-105"
+                                        }`}
+                                    onClick={() => setSelectedAvatar(avatar.path)}
+                                >
+                                    <Image src={avatar.path} alt={avatar.name} width={256} height={256} className="w-full aspect-square object-cover" />
+                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2">
+                                        <p className="text-xs text-white text-center font-bold">{avatar.name}</p>
+                                    </div>
+                                    {selectedAvatar === avatar.path ? (
+                                        <div className="absolute top-2 right-2 bg-green-500 rounded-full p-1 shadow-lg">
+                                            <CheckCircle2 className="w-4 h-4 text-white" />
+                                        </div>
+                                    ) : null}
+                                </button>
+                            ))}
+                        </div>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSave}>
-                <div className="space-y-1">
-                    <label htmlFor="name" className="text-sm font-medium text-zinc-700">
-                        Nome
-                    </label>
-                    <input
-                        id="name"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                        className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                        placeholder="Seu nome"
-                        disabled={isSaving}
-                        required
-                    />
-                </div>
-
-                <div className="space-y-1">
-                    <label htmlFor="description" className="text-sm font-medium text-zinc-700">
-                        Descricao
-                    </label>
-                    <textarea
-                        id="description"
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        rows={3}
-                        className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                        placeholder="Conte um pouco sobre voce"
-                        disabled={isSaving}
-                    />
-                </div>
-
-                <div className="space-y-1">
-                    <label htmlFor="avatar" className="text-sm font-medium text-zinc-700">
-                        Avatar (URL)
-                    </label>
-                    <input
-                        id="avatar"
-                        value={avatar}
-                        onChange={(event) => setAvatar(event.target.value)}
-                        className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                        placeholder="https://..."
-                        disabled={isSaving}
-                    />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1">
-                        <label htmlFor="github" className="text-sm font-medium text-zinc-700">
-                            GitHub
-                        </label>
-                        <input
-                            id="github"
-                            value={github}
-                            onChange={(event) => setGithub(event.target.value)}
-                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                            placeholder="https://github.com/seu-usuario"
-                            disabled={isSaving}
-                        />
-                    </div>
-
-                    <div className="space-y-1">
-                        <label htmlFor="linkedin" className="text-sm font-medium text-zinc-700">
-                            LinkedIn
-                        </label>
-                        <input
-                            id="linkedin"
-                            value={linkedin}
-                            onChange={(event) => setLinkedin(event.target.value)}
-                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 transition focus:ring"
-                            placeholder="https://linkedin.com/in/seu-usuario"
-                            disabled={isSaving}
-                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowAvatarSelector(false)}
+                            className="w-full rpg-button"
+                        >
+                            Confirmar Selecao
+                        </button>
                     </div>
                 </div>
-
-                {error ? (
-                    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-                ) : null}
-
-                {message ? (
-                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                        {message}
-                    </p>
-                ) : null}
-
-                <div className="flex flex-wrap gap-3">
-                    <button
-                        type="submit"
-                        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={isSaving}
-                    >
-                        {isSaving ? "Salvando..." : "Salvar perfil"}
-                    </button>
-
-                    <Link
-                        href="/"
-                        className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
-                    >
-                        Voltar para inicio
-                    </Link>
-                </div>
-            </form>
-        </section>
+            ) : null}
+        </div>
     );
 }
 
@@ -230,28 +542,25 @@ export default function ProfilePage() {
         }
     }, [authLoading, isAuthenticated, router]);
 
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-black">
+                <Header />
+                <div className="flex items-center justify-center h-96">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAuthenticated || !user) {
+        return null;
+    }
+
     const handleSignOut = async () => {
         await signOut();
         router.replace("/auth/signin");
     };
 
-    if (authLoading) {
-        return (
-            <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 text-zinc-900">
-                <div className="rounded-xl border border-zinc-200 bg-white px-6 py-4 text-sm text-zinc-600 shadow-sm">
-                    Carregando perfil...
-                </div>
-            </main>
-        );
-    }
-
-    if (!user) {
-        return null;
-    }
-
-    return (
-        <main className="flex min-h-screen justify-center bg-zinc-50 px-4 py-12 text-zinc-900">
-            <ProfileForm currentUser={user} onSignOut={handleSignOut} updateAuthUser={setUser} />
-        </main>
-    );
+    return <ProfileContent key={user.id} user={user} onSignOut={handleSignOut} updateAuthUser={setUser} />;
 }
