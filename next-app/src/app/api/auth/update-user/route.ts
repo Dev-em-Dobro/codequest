@@ -3,6 +3,7 @@ import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
 import { userStorageAdapter } from "@/lib/server/deps";
 import { parseJsonBody, internalError } from "@/lib/server/http";
 import type { UpdateUserInput } from "@/lib/server/types";
+import { toPublicUser } from "@/lib/server/user-contract";
 
 export const runtime = "nodejs";
 
@@ -62,17 +63,7 @@ export async function POST(request: Request) {
         const user = await userStorageAdapter.updateUser(userId, updateData);
 
         return NextResponse.json({
-            user: {
-                id: user?.id,
-                name: user?.name,
-                email: user?.email,
-                description: user?.description,
-                avatar: user?.avatar,
-                github: user?.github,
-                linkedin: user?.linkedin,
-                points: user?.totalPoints || 0,
-                level: Math.floor((user?.totalPoints || 0) / 100) + 1,
-            },
+            user: toPublicUser(user),
             success: true,
         });
     } catch {

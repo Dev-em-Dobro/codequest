@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { storage } from "@/lib/server/deps";
 import { parseJsonBody, internalError } from "@/lib/server/http";
 import { setSessionCookie } from "@/lib/server/auth";
+import { toPublicUser } from "@/lib/server/user-contract";
 
 export const runtime = "nodejs";
 
@@ -32,20 +33,11 @@ export async function POST(request: Request) {
         }
 
         const user = await storage.createUser({ name, email, totalPoints: 0, completedExercises: 0 });
+        const publicUser = toPublicUser(user);
 
         const response = NextResponse.json({
             sessionId: user.id,
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                points: user.totalPoints || 0,
-                level: Math.floor((user.totalPoints || 0) / 100) + 1,
-                description: user.description,
-                avatar: user.avatar,
-                github: user.github,
-                linkedin: user.linkedin,
-            },
+            user: publicUser,
         });
 
         setSessionCookie(response, user.id);
