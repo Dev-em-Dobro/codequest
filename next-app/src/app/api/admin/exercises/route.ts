@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/server/auth";
 import { storage } from "@/lib/server/deps";
 import { parseJsonBody, internalError } from "@/lib/server/http";
+import { enforceRateLimit } from "@/lib/server/rate-limit";
 import type { InsertExercise } from "@/lib/server/storage-types";
 
 export const runtime = "nodejs";
@@ -10,6 +11,17 @@ type CreateExercisePayload = InsertExercise & { id: string };
 
 export async function POST(request: Request) {
   try {
+    const limited = enforceRateLimit(request, {
+      id: "admin-create-exercise",
+      windowMs: 15 * 60 * 1000,
+      max: 20,
+      message: "Muitas operacoes administrativas. Tente novamente mais tarde.",
+    });
+
+    if (limited) {
+      return limited;
+    }
+
     const userId = getCurrentUserId(request);
     if (!userId) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureServerError } from "./sentry";
 
 export async function parseJsonBody<T = Record<string, unknown>>(request: Request): Promise<T> {
   try {
@@ -8,6 +9,7 @@ export async function parseJsonBody<T = Record<string, unknown>>(request: Reques
   }
 }
 
-export function internalError() {
+export function internalError(error?: unknown, context?: Record<string, unknown>) {
+  captureServerError(error ?? new Error("Internal server error"), context);
   return NextResponse.json({ message: "Erro interno do servidor" }, { status: 500 });
 }

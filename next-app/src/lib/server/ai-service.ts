@@ -13,16 +13,14 @@ export async function reviewExerciseCode(
     exerciseDescription: string,
     exerciseInstructions: string,
 ): Promise<CodeReviewResult> {
-    void htmlCode;
-    void cssCode;
-    void javascriptCode;
-    void exerciseTitle;
-    void exerciseDescription;
-    void exerciseInstructions;
+    const codeSize = htmlCode.length + cssCode.length + javascriptCode.length;
+    const hasExerciseContext = Boolean(exerciseTitle || exerciseDescription || exerciseInstructions);
+    const contextLabel = hasExerciseContext ? "contexto do exercicio" : "enunciado";
+    const feedbackPrefix = codeSize > 0 ? "Recebemos seu codigo para analise." : "Nenhum codigo foi enviado.";
 
     return {
-        feedback: "Revisão por IA ainda em migração para o Next.js. Use a validação automática por enquanto.",
-        suggestions: ["Revise as instruções do exercício", "Tente validar novamente após ajustar o código"],
+        feedback: `${feedbackPrefix} Revisao por IA ainda em migracao para o Next.js. Use a validacao automatica por enquanto.`,
+        suggestions: [`Revise o ${contextLabel}`, "Tente validar novamente apos ajustar o codigo"],
         isCorrect: false,
         score: 0,
     };
@@ -35,10 +33,14 @@ export async function getExerciseHint(
     exerciseTitle: string,
     exerciseInstructions: string,
 ): Promise<string> {
-    void htmlCode;
-    void cssCode;
-    void javascriptCode;
-    void exerciseTitle;
-    void exerciseInstructions;
-    return "Dica temporária: revise os requisitos do enunciado e avance em passos pequenos (estrutura, estilo e comportamento).";
+    const codeSize = htmlCode.length + cssCode.length + javascriptCode.length;
+    const hasExerciseContext = Boolean(exerciseTitle || exerciseInstructions);
+    const contextHint = hasExerciseContext
+        ? "revise os requisitos do exercicio"
+        : "confirme o enunciado e os objetivos da tarefa";
+    const progressHint = codeSize > 0
+        ? "refine o que voce ja escreveu em pequenos ajustes"
+        : "comece pela estrutura basica e evolua em passos pequenos";
+
+    return `Dica temporaria: ${contextHint} e ${progressHint} (estrutura, estilo e comportamento).`;
 }

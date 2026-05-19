@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { storage } from "@/lib/server/deps";
 import { parseJsonBody, internalError } from "@/lib/server/http";
 import { setSessionCookie } from "@/lib/server/auth";
+import { enforceRateLimit } from "@/lib/server/rate-limit";
 import { toPublicUser } from "@/lib/server/user-contract";
 
 export const runtime = "nodejs";
@@ -17,6 +18,17 @@ function asTrimmedString(value: unknown): string {
 
 export async function POST(request: Request) {
   try {
+    const limited = enforceRateLimit(request, {
+      id: "auth-sign-in",
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+      message: "Muitas tentativas de autenticacao. Tente novamente mais tarde.",
+    });
+
+    if (limited) {
+      return limited;
+    }
+
     const body = await parseJsonBody<SignInPayload>(request);
     const email = asTrimmedString(body.email);
     const password = asTrimmedString(body.password);

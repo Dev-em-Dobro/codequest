@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     }
 
     const body = await parseJsonBody(request);
-    const feedback = String(body?.feedback || "").trim();
+    const feedback = typeof body?.feedback === "string" ? body.feedback.trim() : "";
     if (!feedback) {
       return NextResponse.json({ error: "Feedback é obrigatório" }, { status: 400 });
     }

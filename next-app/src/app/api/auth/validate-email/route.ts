@@ -1,13 +1,25 @@
 import { NextResponse } from "next/server";
 import { storage } from "@/lib/server/deps";
 import { parseJsonBody, internalError } from "@/lib/server/http";
+import { enforceRateLimit } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
     try {
+        const limited = enforceRateLimit(request, {
+            id: "auth-validate-email",
+            windowMs: 60 * 1000,
+            max: 20,
+            message: "Muitas tentativas de validacao. Aguarde um momento e tente novamente.",
+        });
+
+        if (limited) {
+            return limited;
+        }
+
         const body = await parseJsonBody(request);
-        const email = String(body?.email || "").trim();
+        const email = typeof body?.email === "string" ? body.email.trim() : "";
 
         if (!email) {
             return NextResponse.json({ error: "Email é obrigatório" }, { status: 400 });

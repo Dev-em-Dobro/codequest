@@ -6,7 +6,7 @@ Use este checklist a cada fase para validar paridade funcional da aplicacao.
 - [x] Login com credenciais validas
 - [x] Login com credenciais invalidas
 - [x] Cadastro de usuario
-- [ ] Validacao de email no cadastro
+- [x] Validacao de email no cadastro
 - [x] Persistencia de sessao apos refresh
 - [x] Logout e limpeza de sessao
 - [x] Carregamento de sessao em /api/user
@@ -19,11 +19,11 @@ Use este checklist a cada fase para validar paridade funcional da aplicacao.
 - [x] Exercicio simples (/exercise)
 - [x] Ranking (/ranking)
 - [x] Feedback (/feedback)
-- [ ] Profile (/auth/profile)
+- [x] Profile (/auth/profile)
 - [x] Signup (/auth/signup)
 - [x] Signin (/auth/signin)
 - [x] Forgot password (/auth/forgot-password)
-- [ ] Admin add exercise (/admin/add-exercise)
+- [x] Admin add exercise (/admin/add-exercise)
 - [x] Fallback de pagina inexistente
 
 ## 3) Exercicios e Progresso
@@ -48,7 +48,7 @@ Use este checklist a cada fase para validar paridade funcional da aplicacao.
 - [x] Excluir exercicio admin (/api/admin/exercises/:id)
 
 ## 7) Nao Funcional
-- [ ] Rate limit ativo nas rotas correspondentes
-- [ ] Erros 401/404/500 com resposta esperada
-- [ ] Sentry recebendo eventos (frontend e backend)
+- [x] Rate limit ativo nas rotas correspondentes
+- [x] Erros 401/404/500 com resposta esperada
+- [x] Sentry recebendo eventos (frontend e backend)
 - [x] Build e start locais funcionando

@@ -97,6 +97,7 @@ $allChecks += Test-Request -Name "Ranking API" -Method "GET" -Url "$BaseUrl/api/
 $allChecks += Test-Request -Name "Validate API" -Method "POST" -Url "$BaseUrl/api/exercises/$exerciseId/validate" -ExpectedStatus 200 -Body @{ userCode = $sampleCode }
 $allChecks += Test-Request -Name "AI Hint API" -Method "POST" -Url "$BaseUrl/api/exercises/$exerciseId/ai-hint" -ExpectedStatus 200 -Body @{ userCode = $sampleCode }
 $allChecks += Test-Request -Name "AI Review API" -Method "POST" -Url "$BaseUrl/api/exercises/$exerciseId/ai-review" -ExpectedStatus 200 -Body @{ userCode = $sampleCode }
+$allChecks += Test-Request -Name "Validacao de email no cadastro" -Method "POST" -Url "$BaseUrl/api/auth/validate-email" -ExpectedStatus 200 -Body @{ email = "fase7.validacao.$([Guid]::NewGuid().ToString('N').Substring(0, 8))@example.com" }
 $allChecks += Test-Request -Name "Feedback API unauth" -Method "POST" -Url "$BaseUrl/api/feedbacks" -ExpectedStatus 401 -Body @{ feedback = "Smoke unauth" }
 $allChecks += Test-Request -Name "Admin create API unauth" -Method "POST" -Url "$BaseUrl/api/admin/exercises" -ExpectedStatus 401 -Body @{
     id = "smoke-unauth"
@@ -124,12 +125,15 @@ if (-not $sessionId) {
 }
 
 $authHeaders = @{ Authorization = "Bearer $sessionId" }
+$authCookieHeaders = @{ Cookie = "codequest_session_id=$sessionId" }
 $adminExerciseId = "smoke-admin-$timestamp"
 
 $allChecks += Test-Request -Name "Login com credenciais validas" -Method "POST" -Url "$BaseUrl/api/auth/sign-in" -ExpectedStatus 200 -Body @{ email = $email; password = $password }
 $allChecks += Test-Request -Name "Login com credenciais invalidas" -Method "POST" -Url "$BaseUrl/api/auth/sign-in" -ExpectedStatus 401 -Body @{ email = "naoexiste.$timestamp@example.com"; password = $password }
 $allChecks += Test-Request -Name "Sessao via bearer (/api/user)" -Method "GET" -Url "$BaseUrl/api/user" -ExpectedStatus 200 -Headers $authHeaders
 $allChecks += Test-Request -Name "Persistencia sessao apos refresh" -Method "GET" -Url "$BaseUrl/api/user" -ExpectedStatus 200 -Headers $authHeaders
+$allChecks += Test-Request -Name "Profile (/auth/profile) autenticado" -Method "GET" -Url "$BaseUrl/auth/profile" -ExpectedStatus 200 -Headers $authCookieHeaders
+$allChecks += Test-Request -Name "Admin add exercise autenticado" -Method "GET" -Url "$BaseUrl/admin/add-exercise" -ExpectedStatus 200 -Headers $authCookieHeaders
 $allChecks += Test-Request -Name "Buscar progresso geral autenticado" -Method "GET" -Url "$BaseUrl/api/progress" -ExpectedStatus 200 -Headers $authHeaders
 $allChecks += Test-Request -Name "Buscar progresso por exercicio autenticado" -Method "GET" -Url "$BaseUrl/api/progress/$exerciseId" -ExpectedStatus 200 -Headers $authHeaders
 $allChecks += Test-Request -Name "Salvar codigo autenticado" -Method "POST" -Url "$BaseUrl/api/code/save" -ExpectedStatus 200 -Headers $authHeaders -Body @{ exerciseId = $exerciseId; userCode = $sampleCode }
@@ -153,6 +157,35 @@ $allChecks += Test-Request -Name "Criar exercicio admin autenticado" -Method "PO
 $allChecks += Test-Request -Name "Excluir exercicio admin autenticado" -Method "DELETE" -Url "$BaseUrl/api/admin/exercises/$adminExerciseId" -ExpectedStatus 200 -Headers $authHeaders
 $allChecks += Test-Request -Name "Logout endpoint" -Method "POST" -Url "$BaseUrl/api/auth/sign-out" -ExpectedStatus 200 -Body @{}
 $allChecks += Test-Request -Name "Sessao limpa sem bearer apos logout" -Method "GET" -Url "$BaseUrl/api/user" -ExpectedStatus 401
+
+# Bloco de resiliencia e observabilidade
+$sentryBackendHeaders = @{ "x-forwarded-for" = "203.0.113.88" }
+$allChecks += Test-Request -Name "Sentry backend event" -Method "POST" -Url "$BaseUrl/api/telemetry/sentry-test" -ExpectedStatus 200 -Headers $sentryBackendHeaders -Body @{
+    source = "backend"
+    message = "Phase7 backend sentry smoke"
+    context = @{ flow = "phase7-smoke" }
+}
+$allChecks += Test-Request -Name "Sentry frontend event" -Method "POST" -Url "$BaseUrl/api/telemetry/sentry-test" -ExpectedStatus 200 -Headers $sentryBackendHeaders -Body @{
+    source = "frontend"
+    message = "Phase7 frontend sentry smoke"
+    context = @{ flow = "phase7-smoke" }
+}
+$allChecks += Test-Request -Name "Erro 500 controlado" -Method "POST" -Url "$BaseUrl/api/telemetry/sentry-test" -ExpectedStatus 500 -Headers $sentryBackendHeaders -Body @{
+    forceInternalError = $true
+}
+
+$rateLimitHeaders = @{ "x-forwarded-for" = "203.0.113.99" }
+for ($attempt = 1; $attempt -le 5; $attempt++) {
+    $allChecks += Test-Request -Name "Rate limit baseline sign-in tentativa $attempt" -Method "POST" -Url "$BaseUrl/api/auth/sign-in" -ExpectedStatus 401 -Headers $rateLimitHeaders -Body @{
+        email = "rate-limit.$timestamp@example.com"
+        password = "senha-invalida"
+    }
+}
+
+$allChecks += Test-Request -Name "Rate limit ativo (429)" -Method "POST" -Url "$BaseUrl/api/auth/sign-in" -ExpectedStatus 429 -Headers $rateLimitHeaders -Body @{
+    email = "rate-limit.$timestamp@example.com"
+    password = "senha-invalida"
+}
 
 $allChecks | Format-Table -AutoSize
 
