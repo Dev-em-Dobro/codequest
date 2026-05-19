@@ -24,6 +24,10 @@ export async function GET(request: Request) {
                 email: user.email,
                 points: user.totalPoints || 0,
                 level: Math.floor((user.totalPoints || 0) / 100) + 1,
+                description: user.description,
+                avatar: user.avatar,
+                github: user.github,
+                linkedin: user.linkedin,
             },
         });
     } catch {

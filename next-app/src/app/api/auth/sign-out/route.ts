@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { clearSessionCookie } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
 export async function POST() {
-    return NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true });
+    clearSessionCookie(response);
+    return response;
 }
