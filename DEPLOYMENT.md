@@ -2,10 +2,10 @@
 
 ## Fixed Issues
 
-✅ **Build Command Added**: The application now has a proper production build process
-✅ **Production Server Ready**: Server configured to serve static files in production mode  
-✅ **Environment Handling**: Proper NODE_ENV detection for dev vs production
-✅ **Static Assets**: Frontend builds to `dist/public/` for production serving
+✅ **Build Command Updated**: Root `npm run build` now targets `next-app` (`next build`)
+✅ **Production Server Ready**: Root `npm run start` now starts `next-app` (`next start`)
+✅ **Environment Handling**: Production run is controlled by Next.js runtime
+✅ **Build Output**: Next.js artifacts are generated in `next-app/.next/`
 
 ## Deployment Configuration Changes Needed
 
@@ -34,20 +34,19 @@ run = ["sh", "-c", "npm run build && npm run start"]  // ✅ Production command
 If you have access to modify deployment settings:
 1. Build command: `npm run build`
 2. Start command: `npm run start`
-3. Environment: Set `NODE_ENV=production`
+3. Environment: Set `PORT` and required secrets
 
 ## Production Build Process
 
 The application now properly:
 
-1. **Builds Frontend**: `vite build` → Creates optimized static files in `dist/public/`
-2. **Builds Backend**: `esbuild` → Bundles server code to `dist/index.js`  
-3. **Serves Production**: `npm run start` → Runs with `NODE_ENV=production`
+1. **Builds Next app**: `npm run build` → Runs `next build` inside `next-app`
+2. **Serves Production**: `npm run start` → Runs `next start` inside `next-app`
+3. **Single Runtime**: All root commands now target the Next.js application in `next-app`
 
 ## Environment Variables
 
 Ensure these are set in your deployment environment:
-- `NODE_ENV=production`
 - `PORT=5000` (or your preferred port)
 - All Firebase/database credentials
 - Any API keys your app requires
@@ -62,14 +61,14 @@ Run the deployment script:
 Or manually:
 ```bash
 npm run build
-NODE_ENV=production npm run start
+PORT=5000 npm run start
 ```
 
 ## Verification
 
 Your app should now:
 - ✅ Use production optimized builds  
-- ✅ Serve static assets efficiently
+- ✅ Serve Next.js app and API routes from the same runtime
 - ✅ Handle proper environment detection
 - ✅ Be ready for production deployment
 

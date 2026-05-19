@@ -1,1 +1,0 @@
-export { useAuth } from "@/lib/simple-auth-client";

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Production deployment script for CodeLearn
+# Production deployment script for CodeQuest (Next.js)
 echo "🚀 Starting deployment build..."
 
 # Build the application
@@ -13,18 +13,16 @@ if [ $? -eq 0 ]; then
     echo "🌐 Ready for production deployment"
     echo ""
     echo "📋 Deployment checklist:"
-    echo "  ✓ Frontend built to dist/public/"
-    echo "  ✓ Backend built to dist/index.js"
+    echo "  ✓ Next.js build generated in next-app/.next/"
     echo "  ✓ Production server configured"
     echo "  ✓ Environment variables ready"
     echo ""
     echo "🎯 Next steps:"
     echo "  1. Use 'npm run start' command for production"
-    echo "  2. Set NODE_ENV=production in deployment environment"
-    echo "  3. Ensure all required environment variables are set"
+    echo "  2. Ensure PORT and required environment variables are set"
     echo ""
     echo "🔧 To test production build locally:"
-    echo "  NODE_ENV=production npm run start"
+    echo "  PORT=4010 npm run start"
 else
     echo "❌ Build failed! Please check the errors above."
     exit 1
