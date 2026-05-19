@@ -106,10 +106,27 @@ function getUserInitials(name: string) {
         .slice(0, 2);
 }
 
+function getAvatarSource(avatar: string | undefined): string {
+    if (!avatar?.trim()) {
+        return "/avatars/rpg-male-1.JPG";
+    }
+
+    if (avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("/")) {
+        return avatar;
+    }
+
+    const normalizedPath = avatar.replace(/^\/+/, "");
+    if (normalizedPath.startsWith("avatars/")) {
+        return `/${normalizedPath}`;
+    }
+
+    return `/avatars/${normalizedPath}`;
+}
+
 function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileContentProps>) {
     const [name, setName] = useState(user.name || "");
     const [description, setDescription] = useState(user.description || "");
-    const [selectedAvatar, setSelectedAvatar] = useState(user.avatar ? `/avatars/${user.avatar}` : "/avatars/rpg-male-1.JPG");
+    const [selectedAvatar, setSelectedAvatar] = useState(getAvatarSource(user.avatar));
     const [github, setGithub] = useState(user.github || "");
     const [linkedin, setLinkedin] = useState(user.linkedin || "");
     const [showAvatarSelector, setShowAvatarSelector] = useState(false);
@@ -500,8 +517,8 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                     key={avatar.id}
                                     type="button"
                                     className={`relative text-left cursor-pointer group transition-all duration-200 rounded-lg overflow-hidden border-2 ${selectedAvatar === avatar.path
-                                            ? "ring-2 ring-purple-500 scale-105 border-purple-500"
-                                            : "border-zinc-600 hover:border-purple-400 hover:scale-105"
+                                        ? "ring-2 ring-purple-500 scale-105 border-purple-500"
+                                        : "border-zinc-600 hover:border-purple-400 hover:scale-105"
                                         }`}
                                     onClick={() => setSelectedAvatar(avatar.path)}
                                 >

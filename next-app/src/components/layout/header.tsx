@@ -32,16 +32,39 @@ type RankMeta = {
     borderColor: string;
 };
 
-function getAvatarSource(avatar: string | undefined, name: string): string {
+const avatarPlaceholders = [
+    "/avatars/rpg-male-1.JPG",
+    "/avatars/rpg-male-2.JPG",
+    "/avatars/rpg-male-3.JPG",
+    "/avatars/rpg-female-1.JPG",
+    "/avatars/rpg-female-2.JPG",
+    "/avatars/rpg-female-3.JPG",
+];
+
+function getAvatarSource(avatar: string | undefined, seed: string): string {
     if (avatar && avatar.trim().length > 0) {
-        if (avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("/")) {
+        if (avatar.startsWith("http://") || avatar.startsWith("https://")) {
             return avatar;
         }
 
-        return `/avatars/${avatar}`;
+        const normalizedPath = avatar.replace(/^\/+/, "");
+        if (normalizedPath.startsWith("avatars/")) {
+            return `/${normalizedPath}`;
+        }
+
+        if (avatar.startsWith("/")) {
+            return avatar;
+        }
+
+        return `/avatars/${normalizedPath}`;
     }
 
-    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || "User")}`;
+    const normalizedSeed = seed.trim();
+    const hash = normalizedSeed
+        .split("")
+        .reduce((sum, char) => sum + (char.codePointAt(0) ?? 0), 0);
+
+    return avatarPlaceholders[hash % avatarPlaceholders.length];
 }
 
 function resolveRank(userPoints: number, totalAvailablePoints: number): RankMeta {
@@ -148,7 +171,7 @@ export function Header() {
 
     return (
         <header
-            className="relative z-[99] border-b border-slate-700/50 backdrop-blur-sm"
+            className="relative z-99 border-b border-slate-700/50 backdrop-blur-sm"
             style={{ backgroundColor: "rgba(17, 17, 17, 0.8)" }}
         >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -206,7 +229,7 @@ export function Header() {
 
                                 {showUserMenu ? (
                                     <div
-                                        className="absolute right-0 top-12 z-[999] w-80 max-w-[calc(100vw-2rem)] rounded-lg shadow-2xl"
+                                        className="absolute right-0 top-12 z-999 w-80 max-w-[calc(100vw-2rem)] rounded-lg shadow-2xl"
                                         style={{ backgroundColor: "rgb(45, 45, 45)" }}
                                     >
                                         <div className="border-b border-purple-300/20 p-5">

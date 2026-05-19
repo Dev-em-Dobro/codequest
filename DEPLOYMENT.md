@@ -44,6 +44,21 @@ The application now properly:
 2. **Serves Production**: `npm run start` → Runs `next start` inside `next-app`
 3. **Single Runtime**: All root commands now target the Next.js application in `next-app`
 
+## Vercel Monorepo Configuration (Required)
+
+If you deploy this repository directly to Vercel, configure the project as follows:
+
+1. **Root Directory**: `next-app`
+2. **Framework Preset**: `Next.js`
+3. **Install Command**: `npm install`
+4. **Build Command**: `npm run build`
+5. **Output Directory**: leave default/empty
+6. **Node.js Version**: 20.x (recommended)
+
+Then trigger a new deployment with **Clear Build Cache** enabled.
+
+Without setting **Root Directory = next-app**, Vercel reads the repository root `package.json` and can fail with: "No Next.js version detected".
+
 ## Environment Variables
 
 Ensure these are set in your deployment environment:

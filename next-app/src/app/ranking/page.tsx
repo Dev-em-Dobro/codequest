@@ -39,6 +39,23 @@ function getUserInitials(name: string): string {
         .slice(0, 2);
 }
 
+function getAvatarSource(avatar: string | undefined): string | null {
+    if (!avatar?.trim()) {
+        return null;
+    }
+
+    if (avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("/")) {
+        return avatar;
+    }
+
+    const normalizedPath = avatar.replace(/^\/+/, "");
+    if (normalizedPath.startsWith("avatars/")) {
+        return `/${normalizedPath}`;
+    }
+
+    return `/avatars/${normalizedPath}`;
+}
+
 export default function RankingPage() {
     const { user } = useAuth();
 
@@ -361,9 +378,9 @@ export default function RankingPage() {
                                                     #{rankedUser.rank}
                                                 </div>
 
-                                                {rankedUser.avatar ? (
+                                                {getAvatarSource(rankedUser.avatar) ? (
                                                     <Image
-                                                        src={`/avatars/${rankedUser.avatar}`}
+                                                        src={getAvatarSource(rankedUser.avatar) ?? "/avatars/rpg-male-1.JPG"}
                                                         alt={rankedUser.name}
                                                         width={48}
                                                         height={48}
