@@ -59,37 +59,92 @@ const avatarOptions: AvatarOption[] = [
     { id: "f3", name: "Rainha das Runas", path: "/avatars/rpg-female-3.JPG" },
 ];
 
-function getUserLevel(points: number) {
-    return Math.floor(points / 100) + 1;
+function getUserPercentage(userPoints: number, totalPoints: number) {
+    if (totalPoints === 0) {
+        return 0;
+    }
+
+    return (userPoints / totalPoints) * 100;
 }
 
-function getProgressToNextLevel(points: number) {
-    const level = getUserLevel(points);
-    const currentLevelStart = (level - 1) * 100;
-    const nextThreshold = level * 100;
-    const progress = points - currentLevelStart;
-    const percentage = Math.round((progress / 100) * 100);
+function getLegacyUserLevel(userPoints: number, totalPoints: number) {
+    const percentage = getUserPercentage(userPoints, totalPoints);
+
+    if (percentage >= 81) {
+        return 6;
+    }
+
+    if (percentage >= 65) {
+        return 5;
+    }
+
+    if (percentage >= 49) {
+        return 4;
+    }
+
+    if (percentage >= 33) {
+        return 3;
+    }
+
+    if (percentage >= 17) {
+        return 2;
+    }
+
+    return 1;
+}
+
+function getLegacyProgressToNextLevel(userPoints: number, totalPoints: number) {
+    const percentage = getUserPercentage(userPoints, totalPoints);
+
+    let currentThreshold = 0;
+    let nextThreshold = 17;
+
+    if (percentage >= 81) {
+        currentThreshold = 81;
+        nextThreshold = 100;
+    } else if (percentage >= 65) {
+        currentThreshold = 65;
+        nextThreshold = 81;
+    } else if (percentage >= 49) {
+        currentThreshold = 49;
+        nextThreshold = 65;
+    } else if (percentage >= 33) {
+        currentThreshold = 33;
+        nextThreshold = 49;
+    } else if (percentage >= 17) {
+        currentThreshold = 17;
+        nextThreshold = 33;
+    }
+
+    const progressInLevel = percentage - currentThreshold;
+    const levelRange = nextThreshold - currentThreshold;
+    const progressPercentage = levelRange > 0 ? Math.round((progressInLevel / levelRange) * 100) : 100;
+    const pointsForNextThreshold = Math.ceil((nextThreshold / 100) * totalPoints);
 
     return {
-        nextThreshold,
-        percentage: Math.max(0, Math.min(100, percentage)),
+        percentage: Math.max(0, Math.min(100, progressPercentage)),
+        nextThreshold: pointsForNextThreshold,
     };
 }
 
 function getUserRank(xpPercentage: number) {
-    if (xpPercentage >= 90) {
-        return { name: "Lenda Supreme", color: "#ff6b35", icon: Crown };
+    if (xpPercentage >= 81) {
+        return { name: "Mitológico", color: "#E8B4BC", icon: Crown };
     }
-    if (xpPercentage >= 70) {
-        return { name: "Mestre Arcano", color: "#9d4edd", icon: Trophy };
+    if (xpPercentage >= 65) {
+        return { name: "Lendário", color: "#FFD700", icon: Star };
     }
-    if (xpPercentage >= 50) {
-        return { name: "Guardiao Senior", color: "#4ecdc4", icon: Star };
+    if (xpPercentage >= 49) {
+        return { name: "Elite", color: "#FF8C00", icon: Trophy };
     }
-    if (xpPercentage >= 30) {
-        return { name: "Aventureiro", color: "#45b7d1", icon: Shield };
+    if (xpPercentage >= 33) {
+        return { name: "Veterano", color: "#5E5CFF", icon: Shield };
     }
-    return { name: "Iniciante", color: "#95a5a6", icon: Medal };
+    if (xpPercentage >= 17) {
+        return { name: "Aventureiro", color: "#50C878", icon: Medal };
+    }
+
+    return { name: "Novato", color: "#C0C0C0", icon: Medal };
 }
 
 function getUserInitials(name: string) {
@@ -155,9 +210,9 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
 
     const userPoints = rankingEntry?.totalPoints ?? user.points;
     const completedExercises = rankingEntry?.completedExercises ?? 0;
-    const userLevel = getUserLevel(userPoints);
-    const progressInfo = getProgressToNextLevel(userPoints);
-    const rankPercentage = totalAvailablePoints > 0 ? Math.round((userPoints / totalAvailablePoints) * 100) : 0;
+    const userLevel = getLegacyUserLevel(userPoints, totalAvailablePoints);
+    const progressInfo = getLegacyProgressToNextLevel(userPoints, totalAvailablePoints);
+    const rankPercentage = Math.round(getUserPercentage(userPoints, totalAvailablePoints));
     const userRank = getUserRank(rankPercentage);
 
     const handleSave = async (event: FormEvent<HTMLFormElement>) => {
@@ -195,7 +250,10 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                 name: result.user.name || name.trim(),
                 email: result.user.email || user.email,
                 points: Number(result.user.points ?? user.points),
-                level: Number(result.user.level ?? getUserLevel(Number(result.user.points ?? user.points))),
+                level: Number(
+                    result.user.level ??
+                    getLegacyUserLevel(Number(result.user.points ?? user.points), totalAvailablePoints),
+                ),
                 description: result.user.description || description,
                 avatar: result.user.avatar || avatarFile,
                 github: result.user.github || github,
@@ -221,7 +279,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                     <ol className="flex items-center space-x-2 text-sm">
                         <li>
                             <Link href="/" className="flex items-center text-slate-400 hover:text-purple-400 transition-colors">
-                                Inicio
+                                Início
                             </Link>
                         </li>
                         <ChevronRight className="w-4 h-4 text-slate-600" />
@@ -236,7 +294,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <GlowCard glowColor="purple" customSize className="h-fit">
                         <div className="p-6">
-                            <h1 className="text-2xl font-bold text-white mb-6">Dados do Usuario</h1>
+                            <h1 className="text-2xl font-bold text-white mb-6">Dados do Usuário</h1>
 
                             <form className="space-y-6" onSubmit={handleSave}>
                                 <div className="space-y-2">
@@ -433,7 +491,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
 
                                     <div className="space-y-2">
                                         <div className="flex justify-between text-xs text-white">
-                                            <span>Progresso para proximo nivel</span>
+                                            <span>Progresso para próximo nível</span>
                                             <span>{progressInfo.percentage}%</span>
                                         </div>
                                         <div className="w-full rounded-full h-3 overflow-hidden bg-zinc-900 border border-purple-500/20">
@@ -441,7 +499,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                         </div>
                                         <div className="flex justify-between text-xs mt-1">
                                             <span style={{ color: userRank.color }}>{userPoints} XP</span>
-                                            <span className="text-white opacity-60">Proximo: {progressInfo.nextThreshold} XP</span>
+                                            <span className="text-white opacity-60">Próximo: {progressInfo.nextThreshold} XP</span>
                                         </div>
                                     </div>
 
@@ -483,14 +541,140 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                         </GlowCard>
                     </div>
                 </div>
+
+                <div className="mt-12">
+                    <GlowCard glowColor="orange" customSize className="w-full">
+                        <div className="p-8">
+                            <div className="flex items-center space-x-3 mb-8">
+                                <Trophy className="w-8 h-8 text-orange-400" />
+                                <h2 className="text-3xl font-bold text-white">Conquistas</h2>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                {userPoints >= 10 ? (
+                                    <div className="relative group min-h-[140px]">
+                                        <div
+                                            className="relative flex flex-col justify-between h-full p-5 bg-black/90 rounded-lg border border-green-500/30 group-hover:border-green-400/50 transition-all duration-300"
+                                            style={{ boxShadow: "0 0 8px rgba(34, 197, 94, 0.3)" }}
+                                        >
+                                            <div className="flex items-start space-x-4">
+                                                <div className="flex-shrink-0">
+                                                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
+                                                        <CheckCircle2 className="w-6 h-6 text-white" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-base text-white mb-1">Primeiro Passo</h4>
+                                                    <p className="text-sm text-green-400">Ganhou seus primeiros <span className="font-bold">10 pontos</span></p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-2 mt-3">
+                                                <div className="w-full bg-gray-700 rounded-full h-2">
+                                                    <div className="bg-gradient-to-r from-green-400 to-emerald-600 h-2 rounded-full w-full" />
+                                                </div>
+                                                <span className="text-xs text-green-400 font-bold whitespace-nowrap">100%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {userPoints >= 50 ? (
+                                    <div className="relative group min-h-[140px]">
+                                        <div
+                                            className="relative flex flex-col justify-between h-full p-5 bg-black/90 rounded-lg border border-blue-500/30 group-hover:border-blue-400/50 transition-all duration-300"
+                                            style={{ boxShadow: "0 0 8px rgba(59, 130, 246, 0.3)" }}
+                                        >
+                                            <div className="flex items-start space-x-4">
+                                                <div className="flex-shrink-0">
+                                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-full flex items-center justify-center shadow-lg">
+                                                        <Star className="w-6 h-6 text-white" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-base text-white mb-1">Em Ascensao</h4>
+                                                    <p className="text-sm text-blue-400">Alcancou <span className="font-bold">50 pontos</span> de experiencia</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-2 mt-3">
+                                                <div className="w-full bg-gray-700 rounded-full h-2">
+                                                    <div className="bg-gradient-to-r from-blue-400 to-cyan-600 h-2 rounded-full w-full" />
+                                                </div>
+                                                <span className="text-xs text-blue-400 font-bold whitespace-nowrap">100%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {userPoints >= 100 ? (
+                                    <div className="relative group min-h-[140px]">
+                                        <div
+                                            className="relative flex flex-col justify-between h-full p-5 bg-black/90 rounded-lg border border-purple-500/30 group-hover:border-purple-400/50 transition-all duration-300"
+                                            style={{ boxShadow: "0 0 8px rgba(147, 51, 234, 0.3)" }}
+                                        >
+                                            <div className="flex items-start space-x-4">
+                                                <div className="flex-shrink-0">
+                                                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-600 rounded-full flex items-center justify-center shadow-lg">
+                                                        <Crown className="w-6 h-6 text-white" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-base text-white mb-1">Centuriao</h4>
+                                                    <p className="text-sm text-purple-400">Conquistou <span className="font-bold">100 pontos</span></p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-2 mt-3">
+                                                <div className="w-full bg-gray-700 rounded-full h-2">
+                                                    <div className="bg-gradient-to-r from-purple-400 to-pink-600 h-2 rounded-full w-full" />
+                                                </div>
+                                                <span className="text-xs text-purple-400 font-bold whitespace-nowrap">100%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {Array.from({ length: 20 }, (_, index) => (
+                                    <div key={index} className="relative group opacity-40 min-h-[140px] cursor-not-allowed">
+                                        <div className="relative flex flex-col justify-between h-full p-5 bg-black/50 rounded-lg border border-gray-600/30">
+                                            <div className="flex items-start space-x-4">
+                                                <div className="flex-shrink-0">
+                                                    <div className="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center">
+                                                        <span className="text-lg text-gray-400" style={{ fontFamily: "'Press Start 2P', monospace" }}>?</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-base text-gray-400 mb-1">???</h4>
+                                                    <p className="text-sm text-gray-500">Conquista surpresa bloqueada</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-2 mt-3">
+                                                <div className="w-full bg-gray-700 rounded-full h-2">
+                                                    <div className="bg-gray-600 h-2 rounded-full w-0" />
+                                                </div>
+                                                <span className="text-xs text-gray-500 font-bold whitespace-nowrap">???</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </GlowCard>
+                </div>
             </div>
 
             {showAvatarSelector ? (
                 <div
-                    className="fixed inset-0 z-[9999] flex items-center justify-center"
+                    className="fixed inset-0 z-9999 flex items-center justify-center"
                     style={{ backgroundColor: "rgba(0, 0, 0, 0.8)", backdropFilter: "blur(8px)" }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Fechar seletor de avatar"
                     onClick={(event) => {
                         if (event.target === event.currentTarget) {
+                            setShowAvatarSelector(false);
+                        }
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Escape" || event.key === "Enter" || event.key === " ") {
                             setShowAvatarSelector(false);
                         }
                     }}
@@ -498,7 +682,15 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                     <div
                         className="w-full max-w-2xl mx-4 bg-black/95 rounded-lg border-2 p-6"
                         style={{ borderColor: "#9d4edd", boxShadow: "0 0 30px rgba(157, 78, 221, 0.5)" }}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Seletor de avatar"
                         onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                                setShowAvatarSelector(false);
+                            }
+                        }}
                     >
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xl font-bold text-white">Escolha seu Avatar</h3>
@@ -507,7 +699,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                 onClick={() => setShowAvatarSelector(false)}
                                 className="text-white hover:bg-red-500/20 rounded-md px-2 py-1"
                             >
-                                ?
+                                ×
                             </button>
                         </div>
 
@@ -540,7 +732,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                             onClick={() => setShowAvatarSelector(false)}
                             className="w-full rpg-button"
                         >
-                            Confirmar Selecao
+                            Confirmar Seleção
                         </button>
                     </div>
                 </div>

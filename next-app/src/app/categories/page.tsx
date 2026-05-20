@@ -35,17 +35,17 @@ type GuildInfo = {
 const guildsBase: GuildInfo[] = [
     {
         id: "html",
-        name: "Exercicios HTML",
-        title: "Construtores de Estruturas",
-        description: "Domine as artes fundamentais da construcao web",
+        name: "Exercícios HTML",
+        title: "🔥 Construtores de Estruturas",
+        description: "Domine as artes fundamentais da construção web",
         route: "/exercises/html",
         icon: Sword,
         glowColor: "orange",
     },
     {
         id: "css",
-        name: "Exercicios CSS",
-        title: "Artistas da Estilizacao",
+        name: "Exercícios CSS",
+        title: "🛡️ Artistas da Estilização",
         description: "Transforme estruturas em obras de arte visual",
         route: "/exercises/css",
         icon: Shield,
@@ -53,9 +53,9 @@ const guildsBase: GuildInfo[] = [
     },
     {
         id: "javascript",
-        name: "Exercicios JavaScript",
-        title: "Magos da Interatividade",
-        description: "Invoque poderes magicos de interacao e logica",
+        name: "Exercícios JavaScript",
+        title: "⚡ Magos da Interatividade",
+        description: "Invoque poderes mágicos de interação e lógica",
         route: "/exercises/javascript",
         icon: Zap,
         glowColor: "green",
@@ -146,12 +146,12 @@ export default function CategoriesPage() {
                     </div>
 
                     <div className="mb-8">
-                        <h1 className="text-3xl lg:text-4xl text-white font-bold">Plataforma de Exercicios</h1>
+                        <h1 className="text-3xl lg:text-4xl text-white font-bold">Plataforma de Exercícios</h1>
                     </div>
 
                     <div className="relative mb-6">
                         <p className="relative z-10 text-lg max-w-[500px] mx-auto leading-relaxed text-slate-400">
-                            Pratique programacao com exercicios interativos e conquiste pontos para se tornar um dev lendario
+                            Pratique programação com exercícios interativos e conquiste pontos para se tornar um dev lendário
                         </p>
                     </div>
 
@@ -177,7 +177,7 @@ export default function CategoriesPage() {
                                 <Trophy className="w-8 h-8 text-blue-300" />
                             </div>
                             <div>
-                                <p className="text-sm text-slate-300">Total de Exercicios</p>
+                                <p className="text-sm text-slate-300">Total de Exercícios</p>
                                 <p className="text-3xl font-bold text-white number">{totalExercises}</p>
                             </div>
                         </div>
@@ -189,7 +189,7 @@ export default function CategoriesPage() {
                                 <Star className="w-8 h-8 text-green-300" />
                             </div>
                             <div>
-                                <p className="text-sm text-slate-300">Exercicios Completados</p>
+                                <p className="text-sm text-slate-300">Exercícios Completados</p>
                                 <p className="text-3xl font-bold text-white number">{totalCompleted}</p>
                             </div>
                         </div>
@@ -201,7 +201,7 @@ export default function CategoriesPage() {
                                 <Code className="w-8 h-8 text-purple-300" />
                             </div>
                             <div>
-                                <p className="text-sm text-slate-300">Pontos Disponiveis</p>
+                                <p className="text-sm text-slate-300">Pontos Disponíveis</p>
                                 <p className="text-3xl font-bold text-white number">{totalPoints}</p>
                             </div>
                         </div>
@@ -213,7 +213,7 @@ export default function CategoriesPage() {
                         <GlowCard key={guild.id} glowColor={guild.glowColor} customSize className="flex flex-col min-h-[500px]">
                             <div className="flex flex-col h-full gap-8">
                                 <div className="text-center pb-4 mb-4">
-                                    <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl bg-gradient-to-br from-purple-500 to-purple-700">
+                                    <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl bg-gradient-to-br from-purple-500 to-purple-600">
                                         <guild.icon className="text-white w-10 h-10" />
                                     </div>
                                     <h3 className="text-2xl font-bold text-white mb-2">{guild.name}</h3>
@@ -239,24 +239,24 @@ export default function CategoriesPage() {
                                     <div className="grid grid-cols-2 gap-4 text-center">
                                         <div className="bg-black/20 rounded-lg p-3 border border-white/10">
                                             <div className="text-2xl font-bold text-white number">{guild.completed}</div>
-                                            <div className="text-xs text-slate-300">Exercicios Completos</div>
+                                            <div className="text-xs text-slate-300">Exercícios Completos</div>
                                         </div>
                                         <div className="bg-black/20 rounded-lg p-3 border border-white/10">
                                             <div className="text-2xl font-bold text-white number">{guild.total}</div>
-                                            <div className="text-xs text-slate-300">Total de Exercicios</div>
+                                            <div className="text-xs text-slate-300">Total de Exercícios</div>
                                         </div>
                                     </div>
 
                                     <div className="flex items-center justify-center space-x-2 bg-amber-500/20 rounded-lg p-3 border border-amber-400/30">
                                         <Gem className="w-5 h-5 text-amber-300" />
                                         <span className="text-sm font-bold text-amber-200">
-                                            Ate <span className="number">{guild.totalPoints}</span> XP para conquistar
+                                            Até <span className="number">{guild.totalPoints}</span> XP para conquistar
                                         </span>
                                     </div>
 
                                     <Link href={guild.route} className="block">
                                         <button type="button" className="w-full rpg-button group">
-                                            Exercicios
+                                            Exercícios
                                             <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                         </button>
                                     </Link>

@@ -3,11 +3,24 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Crown, Home, Medal, Shield, Star, Trophy } from "lucide-react";
+import {
+    Award,
+    ChevronRight,
+    Crown,
+    Gem,
+    Shield,
+    Sparkles,
+    Star,
+    Sword,
+    Target,
+    Trophy,
+    Users,
+    Zap,
+} from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { GlowCard } from "@/components/ui/spotlight-card";
-import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
+import { apiClient } from "@/lib/api-client";
 
 type Exercise = {
     id: string;
@@ -24,6 +37,14 @@ type RankingUser = {
     totalPoints: number;
     completedExercises: number;
     rank?: number;
+};
+
+type RankVisual = {
+    name: string;
+    icon: typeof Crown;
+    color: string;
+    bgColor: string;
+    borderColor: string;
 };
 
 function getUserInitials(name: string): string {
@@ -56,14 +77,118 @@ function getAvatarSource(avatar: string | undefined): string | null {
     return `/avatars/${normalizedPath}`;
 }
 
-export default function RankingPage() {
-    const { user } = useAuth();
+function getUserPercentage(userPoints: number, totalPoints: number): number {
+    if (totalPoints === 0) {
+        return 0;
+    }
 
-    const rankingQuery = useQuery({
-        queryKey: ["/api/users/ranking"],
-        queryFn: () => apiClient<RankingUser[]>("/users/ranking"),
-        staleTime: 60 * 1000,
-    });
+    return Math.round((userPoints / totalPoints) * 100);
+}
+
+function getUserRank(points: number, totalPoints: number): RankVisual {
+    const percentage = getUserPercentage(points, totalPoints);
+
+    if (percentage >= 81) {
+        return {
+            name: "Mitológico",
+            icon: Crown,
+            color: "#E8B4BC",
+            bgColor: "rgba(232, 180, 188, 0.15)",
+            borderColor: "rgba(232, 180, 188, 0.3)",
+        };
+    }
+
+    if (percentage >= 65) {
+        return {
+            name: "Lendário",
+            icon: Star,
+            color: "#FFD700",
+            bgColor: "rgba(255, 215, 0, 0.15)",
+            borderColor: "rgba(255, 215, 0, 0.3)",
+        };
+    }
+
+    if (percentage >= 49) {
+        return {
+            name: "Elite",
+            icon: Gem,
+            color: "#FF8C00",
+            bgColor: "rgba(255, 140, 0, 0.15)",
+            borderColor: "rgba(255, 140, 0, 0.3)",
+        };
+    }
+
+    if (percentage >= 33) {
+        return {
+            name: "Veterano",
+            icon: Shield,
+            color: "#5E5CFF",
+            bgColor: "rgba(94, 92, 255, 0.15)",
+            borderColor: "rgba(94, 92, 255, 0.3)",
+        };
+    }
+
+    if (percentage >= 17) {
+        return {
+            name: "Aventureiro",
+            icon: Sword,
+            color: "#50C878",
+            bgColor: "rgba(80, 200, 120, 0.15)",
+            borderColor: "rgba(80, 200, 120, 0.3)",
+        };
+    }
+
+    return {
+        name: "Novato",
+        icon: Sparkles,
+        color: "#C0C0C0",
+        bgColor: "rgba(192, 192, 192, 0.15)",
+        borderColor: "rgba(192, 192, 192, 0.3)",
+    };
+}
+
+function getPositionStyling(position: number) {
+    if (position === 1) {
+        return {
+            icon: Award,
+            color: "#FFD700",
+            bgGradient: "linear-gradient(135deg, #FFD700, #FFA500)",
+            shadowColor: "rgba(255, 215, 0, 0.5)",
+            title: "CAMPEÃO",
+        };
+    }
+
+    if (position === 2) {
+        return {
+            icon: Award,
+            color: "#C0C0C0",
+            bgGradient: "linear-gradient(135deg, #C0C0C0, #A8A8A8)",
+            shadowColor: "rgba(192, 192, 192, 0.5)",
+            title: "2º Lugar",
+        };
+    }
+
+    if (position === 3) {
+        return {
+            icon: Award,
+            color: "#CD7F32",
+            bgGradient: "linear-gradient(135deg, #CD7F32, #B8860B)",
+            shadowColor: "rgba(205, 127, 50, 0.5)",
+            title: "3º Lugar",
+        };
+    }
+
+    return {
+        icon: Target,
+        color: "#9d4edd",
+        bgGradient: "linear-gradient(135deg, #9d4edd, #7b2cbf)",
+        shadowColor: "rgba(157, 78, 221, 0.5)",
+        title: `#${position}`,
+    };
+}
+
+export default function RankingPage() {
+    const { isAuthenticated, user } = useAuth();
 
     const exercisesQuery = useQuery({
         queryKey: ["/api/exercises"],
@@ -71,108 +196,68 @@ export default function RankingPage() {
         staleTime: 5 * 60 * 1000,
     });
 
+    const rankingQuery = useQuery({
+        queryKey: ["/api/users/ranking"],
+        queryFn: () => apiClient<RankingUser[]>("/users/ranking"),
+        staleTime: 15 * 60 * 1000,
+        refetchOnWindowFocus: false,
+    });
+
     const rankedUsers = (rankingQuery.data ?? []).map((entry, index) => ({
         ...entry,
         rank: entry.rank ?? index + 1,
     }));
 
-    const totalAvailablePoints = (exercisesQuery.data ?? []).reduce((total, exercise) => {
-        return total + Number(exercise.points || 0);
+    const totalAvailablePoints = (exercisesQuery.data ?? []).reduce((sum, exercise) => {
+        return sum + Number(exercise.points || 0);
     }, 0);
 
-    const currentUserEntry = rankedUsers.find(
-        (entry) => entry.id === user?.id || (user?.email && entry.email === user.email),
-    );
+    const currentUserRank = rankedUsers.find((entry) => entry.id === user?.id || (user?.email && entry.email === user.email));
 
-    const podiumFirst = rankedUsers[0];
-    const podiumSecond = rankedUsers[1];
-    const podiumThird = rankedUsers[2];
+    const podiumCards = rankedUsers.length >= 3
+        ? [
+            {
+                user: rankedUsers[1],
+                position: 2,
+                orderClass: "md:order-1 md:mt-8",
+                glowColor: "blue" as const,
+            },
+            {
+                user: rankedUsers[0],
+                position: 1,
+                orderClass: "md:order-2",
+                glowColor: "orange" as const,
+            },
+            {
+                user: rankedUsers[2],
+                position: 3,
+                orderClass: "md:order-3 md:mt-8",
+                glowColor: "red" as const,
+            },
+        ]
+        : [];
 
-    const getUserPercentage = (userPoints: number, totalPoints: number) => {
-        if (totalPoints <= 0) {
-            return 0;
-        }
-
-        return Math.round((userPoints / totalPoints) * 100);
-    };
-
-    const getUserRank = (xp: number) => {
-        if (xp >= 90) {
-            return { title: "Lenda Supreme", color: "#ff6b35", icon: Crown };
-        }
-        if (xp >= 70) {
-            return { title: "Mestre Arcano", color: "#9d4edd", icon: Trophy };
-        }
-        if (xp >= 50) {
-            return { title: "Guardiao Senior", color: "#4ecdc4", icon: Star };
-        }
-        if (xp >= 30) {
-            return { title: "Aventureiro", color: "#45b7d1", icon: Shield };
-        }
-        return { title: "Iniciante", color: "#95a5a6", icon: Medal };
-    };
-
-    const getPositionStyling = (position: number) => {
-        if (position === 1) {
-            return {
-                border: "2px solid #ffd700",
-                glow: "0 0 20px rgba(255, 215, 0, 0.4)",
-                bg: "linear-gradient(135deg, #ffd70020, #ffed4a10)",
-                color: "#ffd700",
-            };
-        }
-
-        if (position === 2) {
-            return {
-                border: "2px solid #c0c0c0",
-                glow: "0 0 15px rgba(192, 192, 192, 0.3)",
-                bg: "linear-gradient(135deg, #c0c0c020, #e5e5e510)",
-                color: "#c0c0c0",
-            };
-        }
-
-        if (position === 3) {
-            return {
-                border: "2px solid #cd7f32",
-                glow: "0 0 15px rgba(205, 127, 50, 0.3)",
-                bg: "linear-gradient(135deg, #cd7f3220, #daa52010)",
-                color: "#cd7f32",
-            };
-        }
-
-        return {
-            border: "1px solid rgba(157, 78, 221, 0.3)",
-            glow: "none",
-            bg: "rgba(0, 0, 0, 0.2)",
-            color: "#9d4edd",
-        };
-    };
-
-    const isLoading = rankingQuery.isLoading || exercisesQuery.isLoading;
-    const hasError = rankingQuery.isError || exercisesQuery.isError;
-
-    if (isLoading) {
+    if (rankingQuery.isLoading || exercisesQuery.isLoading) {
         return (
             <div className="min-h-screen bg-black">
                 <Header />
-                <main className="max-w-7xl mx-auto px-4 py-8">
-                    <div className="animate-pulse space-y-6">
-                        <div className="h-8 bg-zinc-700 rounded w-56" />
-                        <div className="h-40 bg-zinc-800 rounded-lg" />
-                        <div className="h-64 bg-zinc-800 rounded-lg" />
+                <div className="flex items-center justify-center h-96">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4" />
+                        <p className="text-slate-300">Carregando ranking...</p>
                     </div>
-                </main>
+                </div>
             </div>
         );
     }
 
-    if (hasError) {
+    if (rankingQuery.isError || exercisesQuery.isError) {
         return (
             <div className="min-h-screen bg-black">
                 <Header />
                 <main className="max-w-4xl mx-auto px-4 py-8">
                     <div className="rounded-xl border border-red-500/40 bg-red-950/40 p-6 text-red-200">
-                        Nao foi possivel carregar o ranking agora.
+                        Não foi possível carregar o ranking agora.
                     </div>
                 </main>
             </div>
@@ -183,243 +268,325 @@ export default function RankingPage() {
         <div className="min-h-screen bg-black">
             <Header />
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-8">
-                    <div className="flex items-center space-x-2 text-sm mb-4" style={{ color: "#fff6e9" }}>
-                        <Link href="/" className="hover:text-purple-400 transition-colors">
-                            <Home className="w-4 h-4 inline mr-1" />
-                            Inicio
-                        </Link>
-                        <span>/</span>
-                        <span className="text-purple-400">Ranking</span>
-                    </div>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <nav className="mb-4" aria-label="Breadcrumb">
+                    <ol className="flex items-center space-x-2 text-sm">
+                        <li>
+                            <Link href="/" className="flex items-center text-slate-400 hover:text-purple-400 transition-colors">
+                                Início
+                            </Link>
+                        </li>
+                        <ChevronRight className="w-4 h-4 text-slate-600" />
+                        <li>
+                            <span className="text-purple-400 font-medium">Ranking dos Aventureiros</span>
+                        </li>
+                    </ol>
+                </nav>
+            </div>
 
-                    <div className="text-center">
-                        <h1 className="text-4xl font-bold mb-4" style={{ color: "#fff6e9" }}>
-                            Hall da Gloria
-                        </h1>
-                        <p className="text-lg" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                            Os maiores guerreiros da plataforma
-                        </p>
-                    </div>
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-bold mb-4" style={{ color: "#9d4edd", fontFamily: "var(--font-retro)" }}>
+                        Hall da Fama
+                    </h1>
+                    <p className="text-xl" style={{ color: "#fff6e9" }}>
+                        Os maiores aventureiros do DevQuest
+                    </p>
                 </div>
 
-                {currentUserEntry ? (
-                    <GlowCard glowColor="purple" customSize className="p-6 mb-8">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                            <div className="text-center md:text-left">
-                                <h3 className="text-lg font-bold mb-2" style={{ color: "#fff6e9" }}>
-                                    Sua Posicao Atual
-                                </h3>
-                                <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                    Continue evoluindo para subir no ranking
-                                </p>
-                            </div>
-
-                            <div className="text-center">
-                                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full border-4 border-purple-500 mb-2 bg-black/30">
-                                    <span className="text-2xl font-bold number text-purple-400">#{currentUserEntry.rank}</span>
+                {isAuthenticated && currentUserRank ? (
+                    <div className="mb-8">
+                        <GlowCard glowColor="purple" customSize>
+                            <div className="p-6">
+                                <div className="flex items-center gap-2 mb-4" style={{ color: "#9d4edd" }}>
+                                    <Users className="w-5 h-5" />
+                                    <h2 className="text-lg font-bold">Sua Posição</h2>
                                 </div>
-                                <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                    Posicao Global
-                                </p>
-                            </div>
 
-                            <div className="text-center md:text-right">
-                                <p className="text-3xl font-bold number" style={{ color: "#9d4edd" }}>
-                                    {currentUserEntry.totalPoints}
-                                </p>
-                                <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                    XP acumulado
-                                </p>
-                                <p className="text-sm mt-1" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                    {currentUserEntry.completedExercises} exercicios concluidos
-                                </p>
-                            </div>
-                        </div>
-                    </GlowCard>
-                ) : null}
-
-                {(podiumFirst || podiumSecond || podiumThird) ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                        {podiumSecond ? (
-                            <GlowCard glowColor="blue" customSize className="p-6 lg:mt-8 order-2 lg:order-1">
-                                <div className="text-center">
-                                    <div className="relative mb-4">
-                                        <div
-                                            className="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-2xl font-bold number"
-                                            style={{
-                                                border: getPositionStyling(2).border,
-                                                background: getPositionStyling(2).bg,
-                                                boxShadow: getPositionStyling(2).glow,
-                                                color: getPositionStyling(2).color,
-                                            }}
-                                        >
-                                            2
+                                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative">
+                                            <div className="w-16 h-16 rounded-full border-2 overflow-hidden bg-black/40 flex items-center justify-center" style={{ borderColor: getUserRank(currentUserRank.totalPoints, totalAvailablePoints).color }}>
+                                                {getAvatarSource(currentUserRank.avatar) ? (
+                                                    <Image
+                                                        src={getAvatarSource(currentUserRank.avatar) ?? "/avatars/rpg-male-1.JPG"}
+                                                        alt={currentUserRank.name}
+                                                        width={64}
+                                                        height={64}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <span className="text-lg font-bold text-white">{getUserInitials(currentUserRank.name)}</span>
+                                                )}
+                                            </div>
+                                            <div
+                                                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                                                style={{
+                                                    backgroundColor: getPositionStyling(currentUserRank.rank ?? 0).color,
+                                                    color: "#0a0a0a",
+                                                    boxShadow: `0 0 10px ${getPositionStyling(currentUserRank.rank ?? 0).shadowColor}`,
+                                                }}
+                                            >
+                                                #{currentUserRank.rank}
+                                            </div>
                                         </div>
-                                        <div className="absolute -top-2 -right-2 text-2xl">🥈</div>
-                                    </div>
-                                    <h3 className="text-xl font-bold mb-1" style={{ color: "#fff6e9" }}>
-                                        {podiumSecond.name}
-                                    </h3>
-                                    <p className="text-2xl font-bold number mb-1" style={{ color: getPositionStyling(2).color }}>
-                                        {podiumSecond.totalPoints}
-                                    </p>
-                                    <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                        XP
-                                    </p>
-                                </div>
-                            </GlowCard>
-                        ) : (
-                            <div className="order-2 lg:order-1" />
-                        )}
 
-                        {podiumFirst ? (
-                            <GlowCard glowColor="orange" customSize className="p-8 order-1 lg:order-2">
-                                <div className="text-center">
-                                    <div className="relative mb-6">
-                                        <div
-                                            className="w-24 h-24 rounded-full mx-auto flex items-center justify-center text-3xl font-bold number"
-                                            style={{
-                                                border: getPositionStyling(1).border,
-                                                background: getPositionStyling(1).bg,
-                                                boxShadow: getPositionStyling(1).glow,
-                                                color: getPositionStyling(1).color,
-                                            }}
-                                        >
-                                            1
-                                        </div>
-                                        <div className="absolute -top-3 -right-3 text-3xl">👑</div>
-                                    </div>
-                                    <h2 className="text-2xl font-bold mb-2" style={{ color: "#fff6e9" }}>
-                                        {podiumFirst.name}
-                                    </h2>
-                                    <p className="text-3xl font-bold number mb-1" style={{ color: getPositionStyling(1).color }}>
-                                        {podiumFirst.totalPoints}
-                                    </p>
-                                    <p className="text-sm mb-2" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                        XP
-                                    </p>
-                                    <div className="inline-flex items-center px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/30">
-                                        <Crown className="w-4 h-4 mr-1 text-yellow-400" />
-                                        <span className="text-xs font-bold text-yellow-400">CAMPEAO</span>
-                                    </div>
-                                </div>
-                            </GlowCard>
-                        ) : (
-                            <div className="order-1 lg:order-2" />
-                        )}
+                                        <div>
+                                            <h3 className="text-xl font-bold" style={{ color: "#fff6e9" }}>
+                                                {currentUserRank.name}
+                                            </h3>
 
-                        {podiumThird ? (
-                            <GlowCard glowColor="green" customSize className="p-6 lg:mt-8 order-3">
-                                <div className="text-center">
-                                    <div className="relative mb-4">
-                                        <div
-                                            className="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-2xl font-bold number"
-                                            style={{
-                                                border: getPositionStyling(3).border,
-                                                background: getPositionStyling(3).bg,
-                                                boxShadow: getPositionStyling(3).glow,
-                                                color: getPositionStyling(3).color,
-                                            }}
-                                        >
-                                            3
+                                            <div className="flex flex-wrap items-center gap-2 mt-1 text-sm">
+                                                <span
+                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md border"
+                                                    style={{
+                                                        backgroundColor: getUserRank(currentUserRank.totalPoints, totalAvailablePoints).bgColor,
+                                                        borderColor: getUserRank(currentUserRank.totalPoints, totalAvailablePoints).borderColor,
+                                                        color: getUserRank(currentUserRank.totalPoints, totalAvailablePoints).color,
+                                                    }}
+                                                >
+                                                    {(() => {
+                                                        const CurrentRankIcon = getUserRank(currentUserRank.totalPoints, totalAvailablePoints).icon;
+                                                        return <CurrentRankIcon className="w-3 h-3" />;
+                                                    })()}
+                                                    {getUserRank(currentUserRank.totalPoints, totalAvailablePoints).name}
+                                                </span>
+
+                                                <span className="flex items-center gap-1" style={{ color: "#fff6e9" }}>
+                                                    <Gem className="w-4 h-4" style={{ color: "#9d4edd" }} />
+                                                    <span className="number">{currentUserRank.totalPoints}</span> XP
+                                                </span>
+
+                                                <span className="flex items-center gap-1" style={{ color: "#fff6e9" }}>
+                                                    <Zap className="w-4 h-4" style={{ color: "#50C878" }} />
+                                                    <span className="number">{currentUserRank.completedExercises}</span> exercícios
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="absolute -top-2 -right-2 text-2xl">🥉</div>
                                     </div>
-                                    <h3 className="text-xl font-bold mb-1" style={{ color: "#fff6e9" }}>
-                                        {podiumThird.name}
-                                    </h3>
-                                    <p className="text-2xl font-bold number mb-1" style={{ color: getPositionStyling(3).color }}>
-                                        {podiumThird.totalPoints}
-                                    </p>
-                                    <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                        XP
-                                    </p>
+
+                                    <div className="text-right">
+                                        <p className="text-2xl font-bold number" style={{ color: getPositionStyling(currentUserRank.rank ?? 0).color }}>
+                                            #{currentUserRank.rank}
+                                        </p>
+                                        <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.85 }}>
+                                            Posição
+                                        </p>
+                                    </div>
                                 </div>
-                            </GlowCard>
-                        ) : (
-                            <div className="order-3" />
-                        )}
+                            </div>
+                        </GlowCard>
                     </div>
                 ) : null}
 
-                <GlowCard glowColor="purple" customSize className="p-6">
-                    <h2 className="text-2xl font-bold mb-6 flex items-center" style={{ color: "#fff6e9" }}>
-                        <Trophy className="w-6 h-6 mr-3 text-purple-400" />
+                {podiumCards.length > 0 ? (
+                    <div className="mb-12">
+                        <h2 className="text-2xl font-bold text-center mb-8" style={{ color: "#9d4edd" }}>
+                            🏆 Pódio dos Campeões
+                        </h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                            {podiumCards.map((podiumCard) => {
+                                const podiumUser = podiumCard.user;
+                                const position = podiumCard.position;
+                                const style = getPositionStyling(position);
+                                const rankData = getUserRank(podiumUser.totalPoints, totalAvailablePoints);
+                                const RankIcon = rankData.icon;
+
+                                return (
+                                    <div key={podiumUser.id} className={podiumCard.orderClass}>
+                                        <GlowCard glowColor={podiumCard.glowColor} customSize>
+                                            <div className="relative p-6 text-center">
+                                                <div
+                                                    className="absolute left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white font-bold text-sm"
+                                                    style={{
+                                                        top: position === 1 ? "-24px" : "-16px",
+                                                        background: style.bgGradient,
+                                                        boxShadow: `0 4px 15px ${style.shadowColor}`,
+                                                    }}
+                                                >
+                                                    {style.title}
+                                                </div>
+
+                                                <div className="relative mb-4 mt-3">
+                                                    <div className="w-24 h-24 mx-auto rounded-full border-4 overflow-hidden bg-black/40 flex items-center justify-center" style={{ borderColor: style.color }}>
+                                                        {getAvatarSource(podiumUser.avatar) ? (
+                                                            <Image
+                                                                src={getAvatarSource(podiumUser.avatar) ?? "/avatars/rpg-male-1.JPG"}
+                                                                alt={podiumUser.name}
+                                                                width={96}
+                                                                height={96}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <span className="text-2xl font-bold text-white">{getUserInitials(podiumUser.name)}</span>
+                                                        )}
+                                                    </div>
+                                                    <Award className="absolute -bottom-2 -right-2 w-8 h-8" style={{ color: style.color }} />
+                                                </div>
+
+                                                <h3 className="text-xl font-bold mb-2" style={{ color: "#fff6e9" }}>
+                                                    {podiumUser.name}
+                                                </h3>
+
+                                                <span
+                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md border mb-3 text-sm"
+                                                    style={{
+                                                        backgroundColor: rankData.bgColor,
+                                                        borderColor: rankData.borderColor,
+                                                        color: rankData.color,
+                                                    }}
+                                                >
+                                                    <RankIcon className="w-3 h-3" />
+                                                    {rankData.name}
+                                                </span>
+
+                                                <p className="text-3xl font-bold number mb-1" style={{ color: style.color }}>
+                                                    {podiumUser.totalPoints} XP
+                                                </p>
+                                                <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.85 }}>
+                                                    {podiumUser.completedExercises} exercícios completos
+                                                </p>
+                                            </div>
+                                        </GlowCard>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : null}
+
+                <div>
+                    <h2 className="text-2xl font-bold text-center mb-8" style={{ color: "#9d4edd" }}>
                         Ranking Completo
                     </h2>
 
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                         {rankedUsers.length === 0 ? (
-                            <div className="rounded-xl border border-white/10 bg-black/25 p-8 text-center text-slate-300">
-                                Nenhum usuario no ranking ainda.
+                            <div className="text-center py-12">
+                                <Trophy className="w-16 h-16 mx-auto mb-4" style={{ color: "#9d4edd" }} />
+                                <h3 className="text-lg font-semibold mb-2" style={{ color: "#9d4edd" }}>
+                                    Nenhum aventureiro encontrado
+                                </h3>
+                                <p style={{ color: "#fff6e9", opacity: 0.8 }}>
+                                    Seja o primeiro a completar exercícios e aparecer no ranking.
+                                </p>
                             </div>
                         ) : (
-                            rankedUsers.map((rankedUser) => {
-                                const positionStyling = getPositionStyling(rankedUser.rank ?? 0);
-                                const percentage = getUserPercentage(rankedUser.totalPoints, totalAvailablePoints);
-                                const userRank = getUserRank(percentage);
+                            rankedUsers.map((rankedUser, index) => {
+                                const position = index + 1;
+                                const positionStyle = getPositionStyling(position);
+                                const rankData = getUserRank(rankedUser.totalPoints, totalAvailablePoints);
+                                const RankIcon = rankData.icon;
+                                const isCurrentUser = rankedUser.id === user?.id;
 
                                 return (
-                                    <div
-                                        key={rankedUser.id}
-                                        className={`p-4 rounded-lg transition-all duration-300 hover:scale-[1.01] ${rankedUser.id === user?.id ? "ring-2 ring-purple-500" : ""
-                                            }`}
-                                        style={{
-                                            border: positionStyling.border,
-                                            background: positionStyling.bg,
-                                            boxShadow: positionStyling.glow,
-                                        }}
-                                    >
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="flex items-center gap-4 min-w-0">
-                                                <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center font-bold number text-sm shrink-0" style={{ borderColor: positionStyling.color, color: positionStyling.color }}>
-                                                    #{rankedUser.rank}
-                                                </div>
-
-                                                {getAvatarSource(rankedUser.avatar) ? (
-                                                    <Image
-                                                        src={getAvatarSource(rankedUser.avatar) ?? "/avatars/rpg-male-1.JPG"}
-                                                        alt={rankedUser.name}
-                                                        width={48}
-                                                        height={48}
-                                                        className="w-12 h-12 rounded-full border-2 border-purple-500 object-cover shrink-0"
-                                                    />
-                                                ) : (
-                                                    <div className="w-12 h-12 rounded-full border-2 border-purple-500 bg-purple-900/40 flex items-center justify-center text-sm text-white font-semibold shrink-0">
-                                                        {getUserInitials(rankedUser.name)}
+                                    <GlowCard key={rankedUser.id} glowColor={isCurrentUser ? "purple" : "blue"} customSize className={`transition-all duration-200 ${isCurrentUser ? "ring-2 ring-purple-500 scale-[1.01]" : "hover:scale-[1.005]"}`}>
+                                        <div className="p-6">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-4 min-w-0">
+                                                    <div
+                                                        className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shrink-0"
+                                                        style={{
+                                                            background: positionStyle.bgGradient,
+                                                            boxShadow: `0 4px 15px ${positionStyle.shadowColor}`,
+                                                        }}
+                                                    >
+                                                        {position <= 3 ? <positionStyle.icon className="w-6 h-6" /> : position}
                                                     </div>
-                                                )}
 
-                                                <div className="min-w-0">
-                                                    <h3 className="font-bold truncate" style={{ color: "#fff6e9" }}>
-                                                        {rankedUser.name}
-                                                        {rankedUser.id === user?.id ? " (Voce)" : ""}
-                                                    </h3>
-                                                    <div className="text-sm flex items-center gap-2" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                                        <span className="truncate">{userRank.title}</span>
-                                                        <span>•</span>
-                                                        <span className="number">{percentage}%</span>
+                                                    <div className="w-14 h-14 rounded-full border-2 overflow-hidden bg-black/40 shrink-0" style={{ borderColor: rankData.color }}>
+                                                        {getAvatarSource(rankedUser.avatar) ? (
+                                                            <Image
+                                                                src={getAvatarSource(rankedUser.avatar) ?? "/avatars/rpg-male-1.JPG"}
+                                                                alt={rankedUser.name}
+                                                                width={56}
+                                                                height={56}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white">
+                                                                {getUserInitials(rankedUser.name)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="min-w-0">
+                                                        <h3 className="text-lg font-bold truncate" style={{ color: "#fff6e9" }}>
+                                                            {rankedUser.name}
+                                                            {isCurrentUser ? <span className="ml-2 text-sm text-purple-400">(Você)</span> : null}
+                                                        </h3>
+
+                                                        <div className="flex flex-wrap items-center gap-2 mt-1 text-sm">
+                                                            <span
+                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border"
+                                                                style={{
+                                                                    backgroundColor: rankData.bgColor,
+                                                                    borderColor: rankData.borderColor,
+                                                                    color: rankData.color,
+                                                                }}
+                                                            >
+                                                                <RankIcon className="w-3 h-3" />
+                                                                {rankData.name}
+                                                            </span>
+
+                                                            <span className="flex items-center gap-1" style={{ color: "#fff6e9" }}>
+                                                                <Gem className="w-4 h-4" style={{ color: "#9d4edd" }} />
+                                                                <span className="number font-medium">{rankedUser.totalPoints}</span> XP
+                                                            </span>
+
+                                                            <span className="flex items-center gap-1" style={{ color: "#fff6e9" }}>
+                                                                <Zap className="w-4 h-4" style={{ color: "#50C878" }} />
+                                                                <span className="number font-medium">{rankedUser.completedExercises}</span> exercícios
+                                                            </span>
+                                                        </div>
+
+                                                        {(rankedUser.github || rankedUser.linkedin) ? (
+                                                            <div className="flex items-center gap-2 mt-2">
+                                                                {rankedUser.github ? (
+                                                                    <a
+                                                                        href={rankedUser.github.startsWith("http") ? rankedUser.github : `https://github.com/${rankedUser.github}`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="p-1 rounded-full hover:bg-zinc-700 transition-colors"
+                                                                        title="GitHub"
+                                                                    >
+                                                                        <span className="text-[10px] font-bold text-zinc-300 hover:text-white">GH</span>
+                                                                    </a>
+                                                                ) : null}
+
+                                                                {rankedUser.linkedin ? (
+                                                                    <a
+                                                                        href={rankedUser.linkedin.startsWith("http") ? rankedUser.linkedin : `https://linkedin.com/in/${rankedUser.linkedin}`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="p-1 rounded-full hover:bg-zinc-700 transition-colors"
+                                                                        title="LinkedIn"
+                                                                    >
+                                                                        <span className="text-[10px] font-bold text-blue-300 hover:text-blue-200">in</span>
+                                                                    </a>
+                                                                ) : null}
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            <div className="text-right shrink-0">
-                                                <div className="text-lg font-bold number" style={{ color: positionStyling.color }}>
-                                                    {rankedUser.totalPoints} XP
-                                                </div>
-                                                <div className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                                                    {rankedUser.completedExercises} exercicios
+                                                <div className="text-right shrink-0">
+                                                    <p className="text-lg font-bold number mb-1" style={{ color: rankData.color }}>
+                                                        {getUserPercentage(rankedUser.totalPoints, totalAvailablePoints)}%
+                                                    </p>
+                                                    <p className="text-xs" style={{ color: "#fff6e9", opacity: 0.7 }}>
+                                                        progresso
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    </GlowCard>
                                 );
                             })
                         )}
                     </div>
-                </GlowCard>
+                </div>
             </main>
         </div>
     );

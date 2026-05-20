@@ -72,7 +72,7 @@ function resolveRank(userPoints: number, totalAvailablePoints: number): RankMeta
 
     if (percentage >= 81) {
         return {
-            name: "Mitologico",
+            name: "Mitológico",
             icon: Crown,
             color: "#E8B4BC",
             bgColor: "rgba(232, 180, 188, 0.15)",
@@ -82,7 +82,7 @@ function resolveRank(userPoints: number, totalAvailablePoints: number): RankMeta
 
     if (percentage >= 65) {
         return {
-            name: "Lendario",
+            name: "Lendário",
             icon: Star,
             color: "#FFD700",
             bgColor: "rgba(255, 215, 0, 0.15)",

@@ -1,197 +1,183 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, Home, Plus, RefreshCw, Shield } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Header } from "@/components/layout/header";
-import { GlowCard } from "@/components/ui/spotlight-card";
-import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/hooks/use-auth";
 
-type CreateExercisePayload = {
-    id: string;
-    title: string;
-    description: string;
-    difficulty: "iniciante" | "intermediario" | "avancado";
-    category: "html" | "css" | "javascript";
-    points: number;
-    instructions: string;
-    order?: number;
-    initialCode?: { html: string; css: string; javascript: string };
-    starterTemplate?: { html: string; css: string; javascript: string };
-    solutionCode?: { html: string; css: string; javascript: string };
-    hints?: string[];
-    validationRules?: Array<{ type: string; rule: string; message: string }>;
-    tests?: string[];
+type StatusState = {
+    type: "success" | "error" | "info";
+    message: string;
 };
 
-const examplePayload: CreateExercisePayload = {
-    id: "html-introducao-tags",
-    title: "HTML: Introducao de Tags",
-    description: "Crie um titulo e um paragrafo usando tags semanticas.",
+const exampleExercise = {
+    id: "html-tags-essenciais-cabecalho",
+    title: "HTML: Tags Essenciais - Cabeçalho",
+    description: "Aprenda a usar a tag <h1> para criar o título principal da página.",
     difficulty: "iniciante",
     category: "html",
     points: 10,
-    instructions: "Adicione um <h1> com um titulo e um <p> com uma descricao.",
-    order: 1,
-    initialCode: { html: "", css: "", javascript: "" },
-    starterTemplate: { html: "", css: "", javascript: "" },
-    solutionCode: { html: "<h1>Titulo</h1><p>Descricao</p>", css: "", javascript: "" },
-    hints: ["Use as tags <h1> e <p> para estruturar o conteudo."],
+    instructions: "Crie um elemento <h1> com o texto 'Bem-vindo à minha página!' dentro da tag <body>.",
+    solutionCode: {
+        html: "<h1>Bem-vindo à minha página!</h1>",
+        css: "",
+        javascript: "",
+    },
+    hints: [
+        "Use a tag <h1> para criar um título principal",
+        "Coloque o texto exatamente entre as tags de abertura e fechamento",
+    ],
     validationRules: [
         {
             type: "contains",
-            rule: "<h1>",
-            message: "Seu codigo deve conter um titulo h1.",
+            rule: "<h1>Bem-vindo à minha página!</h1>",
+            message: "Seu código deve conter um título principal com o texto correto",
         },
     ],
-    tests: ["Deve conter tag h1", "Deve conter tag p"],
+    tests: ["Deve conter a tag <h1>", "Deve ter o texto correto dentro do cabeçalho"],
 };
 
-export default function AdminAddExercisePage() {
-    const [jsonInput, setJsonInput] = useState(JSON.stringify(examplePayload, null, 2));
-    const [message, setMessage] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+export default function AddExercisePage() {
+    const router = useRouter();
+    const { user } = useAuth();
 
-    const createExerciseMutation = useMutation({
-        mutationFn: (payload: CreateExercisePayload) =>
-            apiClient<{ message: string; exercise: { id: string } }>("/admin/exercises", {
-                method: "POST",
-                body: payload,
-            }),
-        onSuccess: (result) => {
-            setError(null);
-            setMessage(`Exercicio criado com sucesso: ${result.exercise.id}`);
-        },
-        onError: (mutationError) => {
-            setMessage(null);
-            setError(mutationError instanceof Error ? mutationError.message : "Falha ao criar exercicio.");
-        },
-    });
+    const [jsonInput, setJsonInput] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [status, setStatus] = useState<StatusState | null>(null);
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    let statusClass = "bg-blue-900/20 border-blue-500/40 text-blue-200";
+    if (status?.type === "success") {
+        statusClass = "bg-green-900/20 border-green-500/40 text-green-200";
+    } else if (status?.type === "error") {
+        statusClass = "bg-red-900/20 border-red-500/40 text-red-200";
+    }
+
+    const loadExample = () => {
+        setJsonInput(JSON.stringify(exampleExercise, null, 2));
+        setStatus(null);
+    };
+
+    const handleSubmit = async (event: { preventDefault: () => void }) => {
         event.preventDefault();
-        setError(null);
-        setMessage(null);
 
-        let parsed: unknown;
+        const token = user?.id || globalThis.localStorage.getItem("codequest_session_id");
+        if (!token) {
+            setStatus({
+                type: "error",
+                message: "Você precisa estar logado para criar exercícios.",
+            });
+
+            globalThis.setTimeout(() => {
+                router.push("/auth/signin");
+            }, 2000);
+            return;
+        }
+
+        setLoading(true);
+        setStatus(null);
+
         try {
-            parsed = JSON.parse(jsonInput);
-        } catch {
-            setError("JSON invalido. Revise a estrutura antes de enviar.");
-            return;
-        }
+            const response = await fetch("/api/admin/exercises", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: jsonInput,
+            });
 
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-            setError("O payload deve ser um objeto JSON.");
-            return;
-        }
+            const result = (await response.json()) as { error?: string };
 
-        createExerciseMutation.mutate(parsed as CreateExercisePayload);
+            if (!response.ok) {
+                throw new Error(result.error || "Erro ao criar exercício");
+            }
+
+            setStatus({
+                type: "success",
+                message: "Exercício criado com sucesso! Redirecionando para a página inicial...",
+            });
+            setJsonInput("");
+
+            globalThis.setTimeout(() => {
+                router.push("/");
+            }, 2000);
+        } catch (submitError) {
+            const message = submitError instanceof Error ? submitError.message : "Erro ao criar exercício.";
+            setStatus({ type: "error", message });
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="min-h-screen bg-black">
             <Header />
 
-            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex items-center space-x-2 text-sm mb-6" style={{ color: "#fff6e9" }}>
-                    <Link href="/" className="hover:text-purple-400 transition-colors flex items-center">
-                        <Home className="w-4 h-4 mr-1" />
-                        Inicio
-                    </Link>
-                    <span>/</span>
-                    <Link href="/categories" className="hover:text-purple-400 transition-colors">
-                        Categorias
-                    </Link>
-                    <span>/</span>
-                    <span className="text-purple-400">Painel Admin</span>
-                </div>
+            <main className="max-w-4xl mx-auto p-4 mt-8">
+                <h1 className="text-3xl font-bold mb-8" style={{ color: "#fff6e9", fontFamily: "var(--font-retro)" }}>
+                    Adicionar Novo Exercício
+                </h1>
 
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/20 border border-red-500/30 mb-4">
-                        <Shield className="w-4 h-4 text-red-400" />
-                        <span className="text-sm font-bold text-red-300">AREA ADMINISTRATIVA</span>
+                <div className="rounded-xl border border-purple-500/30 bg-black/40 p-6 mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <h2 className="text-xl font-semibold" style={{ color: "#fff6e9" }}>
+                            JSON do Exercício
+                        </h2>
+
+                        <button type="button" onClick={loadExample} className="rpg-button px-4 py-2 text-sm">
+                            Carregar Exemplo
+                        </button>
                     </div>
-                    <h1 className="text-3xl lg:text-4xl font-bold mb-3" style={{ color: "#fff6e9" }}>
-                        Adicionar Novo Exercicio
-                    </h1>
-                    <p className="text-lg" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                        Crie novas quests para os aventureiros da plataforma
-                    </p>
-                </div>
 
-                <GlowCard glowColor="purple" customSize className="p-8 mb-6">
-                    <form className="space-y-6" onSubmit={handleSubmit}>
-                        <div>
-                            <label htmlFor="exercise-json" className="block text-sm font-bold mb-3" style={{ color: "#fff6e9" }}>
-                                Payload JSON do Exercicio
-                            </label>
-                            <textarea
-                                id="exercise-json"
-                                value={jsonInput}
-                                onChange={(event) => setJsonInput(event.target.value)}
-                                rows={24}
-                                className="input-8bit w-full font-mono text-xs"
-                            />
-                        </div>
+                    <form onSubmit={handleSubmit}>
+                        <textarea
+                            value={jsonInput}
+                            onChange={(event) => setJsonInput(event.target.value)}
+                            placeholder="Cole aqui o JSON do exercício..."
+                            className="w-full h-96 p-4 bg-gray-900 text-white font-mono text-sm rounded-lg border border-gray-700 focus:border-purple-400 focus:outline-none"
+                            required
+                        />
 
-                        {error ? (
-                            <div className="p-4 rounded-lg border bg-red-900/20 border-red-500/50 text-red-300 flex items-start gap-2">
-                                <span className="font-bold">Erro:</span>
-                                <span>{error}</span>
+                        {status ? (
+                            <div className={`mt-4 rounded-lg border px-4 py-3 text-sm ${statusClass}`}>
+                                {status.message}
                             </div>
                         ) : null}
 
-                        {message ? (
-                            <div className="p-4 rounded-lg border bg-green-900/20 border-green-500/50 text-green-300 flex items-start gap-2">
-                                <CheckCircle2 className="w-5 h-5 mt-0.5" />
-                                <span>{message}</span>
-                            </div>
-                        ) : null}
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <button
-                                type="submit"
-                                disabled={createExerciseMutation.isPending}
-                                className="rpg-button flex items-center justify-center"
-                            >
-                                {createExerciseMutation.isPending ? (
-                                    <>
-                                        <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        Criando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        Criar Exercicio
-                                    </>
-                                )}
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setJsonInput(JSON.stringify(examplePayload, null, 2));
-                                    setError(null);
-                                    setMessage(null);
-                                }}
-                                className="border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded-md px-4 py-2 text-sm font-semibold transition-colors flex items-center justify-center"
-                            >
-                                <RefreshCw className="w-4 h-4 mr-2" />
-                                Restaurar Exemplo
+                        <div className="mt-6 flex flex-wrap gap-4">
+                            <button type="submit" disabled={loading || !jsonInput} className="rpg-button px-5 py-2 disabled:opacity-50">
+                                {loading ? "Criando..." : "Criar Exercício"}
                             </button>
 
                             <Link
                                 href="/"
-                                className="border border-zinc-500/40 bg-zinc-700/20 hover:bg-zinc-700/35 text-zinc-200 rounded-md px-4 py-2 text-sm font-semibold transition-colors flex items-center justify-center"
+                                className="rounded-md border border-zinc-600 bg-zinc-800/60 hover:bg-zinc-700/80 text-zinc-100 px-5 py-2 text-sm font-semibold transition-colors"
                             >
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Voltar ao Inicio
+                                Cancelar
                             </Link>
                         </div>
                     </form>
-                </GlowCard>
+                </div>
+
+                <div className="rounded-xl border border-purple-500/20 bg-black/30 p-6">
+                    <h3 className="text-lg font-semibold mb-4" style={{ color: "#fff6e9" }}>
+                        Estrutura do JSON
+                    </h3>
+                    <ul className="space-y-2 text-sm" style={{ color: "#d7d1f1" }}>
+                        <li>• id: Identificador único do exercício</li>
+                        <li>• title: Título do exercício</li>
+                        <li>• description: Descrição do exercício</li>
+                        <li>• difficulty: iniciante | intermediario | avancado</li>
+                        <li>• category: html | css | javascript</li>
+                        <li>• points: Pontos do exercício</li>
+                        <li>• instructions: Instruções detalhadas</li>
+                        <li>• solutionCode: Objeto com html, css e javascript</li>
+                        <li>• hints: Array de dicas</li>
+                        <li>• validationRules: Array de regras de validação</li>
+                        <li>• tests: Array de descrições de testes</li>
+                    </ul>
+                </div>
             </main>
         </div>
     );

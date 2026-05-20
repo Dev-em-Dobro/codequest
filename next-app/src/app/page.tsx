@@ -26,7 +26,7 @@ const categoryDefinitions = [
   {
     id: "html" as const,
     title: "HTML",
-    description: "Estrutura e semantica web",
+    description: "Estrutura e semântica web",
     icon: Code,
     color: "#e34c26",
     bgColor: "rgba(227, 76, 38, 0.1)",
@@ -35,7 +35,7 @@ const categoryDefinitions = [
   {
     id: "css" as const,
     title: "CSS",
-    description: "Estilizacao e design visual",
+    description: "Estilização e design visual",
     icon: Palette,
     color: "#1572b6",
     bgColor: "rgba(21, 114, 182, 0.1)",
@@ -44,7 +44,7 @@ const categoryDefinitions = [
   {
     id: "javascript" as const,
     title: "JavaScript",
-    description: "Interatividade e logica",
+    description: "Interatividade e lógica",
     icon: Zap,
     color: "#f7df1e",
     bgColor: "rgba(247, 223, 30, 0.1)",
@@ -82,7 +82,7 @@ export default function HomePage() {
   }, [isAuthenticated, progressQuery, user]);
 
   const exercises = exercisesQuery.data ?? [];
-  const progress = progressQuery.data ?? [];
+  const progress = isAuthenticated ? (progressQuery.data ?? []) : [];
 
   const getCategoryStats = (categoryId: ExerciseCategory) => {
     const categoryExercises = exercises.filter((exercise) => exercise.category === categoryId);
@@ -113,7 +113,7 @@ export default function HomePage() {
         <div className="mb-12 text-center">
           <div className="mb-8">
             <span className="relative inline-block cursor-pointer overflow-hidden rounded-full border border-gray-700 bg-[#1a1a1a] px-4 py-1 text-xs font-medium text-[#0CF2A0] transition-colors hover:border-[#0CF2A0]/50 sm:text-sm">
-              ✨ Powered by DevQuest AI
+              <span>✨ Powered by DevQuest AI</span>
               <span
                 style={{
                   position: "absolute",
@@ -141,14 +141,18 @@ export default function HomePage() {
                 fontWeight: 300,
               }}
             >
-              Domine programacao web com desafios praticos, feedback inteligente por IA e experiencia de aprendizado
+              Domine programação web com desafios práticos, feedback inteligente por IA e experiência de aprendizado
               personalizada para o seu ritmo.
             </p>
 
             <div className="mt-8 flex justify-center">
-              <button type="button" className="rpg-button" onClick={scrollToCategories}>
+              <button
+                type="button"
+                className="rpg-button inline-flex items-center justify-center rounded-md px-8 py-3 text-base font-semibold"
+                onClick={scrollToCategories}
+              >
                 <Play className="mr-2 h-5 w-5" />
-                Comecar Aventura
+                Começar Aventura
               </button>
             </div>
           </div>
@@ -156,7 +160,7 @@ export default function HomePage() {
 
         <div id="categorias" style={{ paddingTop: "4rem" }}>
           <h2 className="mb-6 text-center text-2xl font-bold" style={{ color: "#9d4edd" }}>
-            Escolha uma categoria para comecar
+            Escolha uma categoria para começar
           </h2>
 
           <div className="mx-auto max-w-2xl" style={{ marginBottom: "2rem" }}>
@@ -170,88 +174,89 @@ export default function HomePage() {
                 textAlign: "center",
               }}
             >
-              Bem-vindo(a) Aventureiro(a)! Desbloqueie conquistas, colete pontos de experiencia e evolua do Novato ao
-              Dev Lendario atraves de desafios praticos de programacao.
+              Bem-vindo(a) Aventureiro(a)! Desbloqueie conquistas, colete pontos de experiência e evolua do Novato ao
+              Dev Lendário através de desafios práticos de programação.
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {categories.map((category) => {
               const Icon = category.icon;
+              const isCategoryLoading = progressQuery.isLoading || exercisesQuery.isLoading;
+              const progressPercentage = category.total > 0 ? Math.round((category.completed / category.total) * 100) : 0;
+              const progressWidth = category.total > 0 ? (category.completed / category.total) * 100 : 0;
 
               return (
-                <GlowCard key={category.id} glowColor="purple" customSize>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <div
-                        className="flex h-12 w-12 items-center justify-center rounded-lg"
-                        style={{ backgroundColor: category.bgColor }}
-                      >
-                        <Icon className="h-6 w-6" style={{ color: category.color }} />
-                      </div>
-
-                      <span
-                        className="number rounded-full border px-2 py-1 text-xs font-medium"
-                        style={{ color: "#9d4edd", borderColor: "#9d4edd" }}
-                      >
-                        {progressQuery.isLoading || exercisesQuery.isLoading ? (
-                          <span className="animate-pulse">--/--</span>
-                        ) : (
-                          `${category.completed}/${category.total}`
-                        )}
-                      </span>
-                    </div>
-
-                    <h3 style={{ color: "#fff6e9" }} className="text-lg font-semibold">
-                      {category.title}
-                    </h3>
-                    <p style={{ color: "#fff6e9", opacity: 0.8 }} className="mt-1 text-sm">
-                      {category.description}
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="mb-4">
+                <GlowCard key={category.id} glowColor="purple" customSize className="h-full p-0">
+                  <div className="flex h-full flex-col">
+                    <div className="p-6 pb-3">
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-medium" style={{ color: "#fff6e9" }}>
-                          Progresso
-                        </span>
-                        <span className="number text-sm" style={{ color: "#9d4edd" }}>
-                          {progressQuery.isLoading || exercisesQuery.isLoading ? (
-                            <span className="animate-pulse">--%</span>
+                        <div
+                          className="flex h-12 w-12 items-center justify-center rounded-lg"
+                          style={{ backgroundColor: category.bgColor }}
+                        >
+                          <Icon className="h-6 w-6" style={{ color: category.color }} />
+                        </div>
+
+                        <span
+                          className="number rounded-full border px-2 py-1 text-xs font-medium"
+                          style={{ color: "#9d4edd", borderColor: "#9d4edd" }}
+                        >
+                          {isCategoryLoading ? (
+                            <span className="animate-pulse">--/--</span>
                           ) : (
-                            `${category.total > 0 ? Math.round((category.completed / category.total) * 100) : 0}%`
+                            `${category.completed}/${category.total}`
                           )}
                         </span>
                       </div>
 
-                      <div
-                        className="relative h-2 w-full overflow-hidden rounded-full"
-                        style={{ backgroundColor: "rgba(75, 85, 99, 0.3)" }}
-                      >
-                        <div
-                          className={`h-full transition-all duration-300 ${progressQuery.isLoading || exercisesQuery.isLoading ? "animate-pulse" : ""
-                            }`}
-                          style={{
-                            width:
-                              progressQuery.isLoading || exercisesQuery.isLoading
-                                ? "20%"
-                                : `${category.total > 0 ? (category.completed / category.total) * 100 : 0}%`,
-                            backgroundColor:
-                              progressQuery.isLoading || exercisesQuery.isLoading
-                                ? "rgba(157, 78, 221, 0.4)"
-                                : "#9d4edd",
-                          }}
-                        />
+                      <div style={{ color: "#fff6e9" }} className="text-2xl font-semibold leading-none tracking-tight">
+                        {category.title}
+                      </div>
+                      <div style={{ color: "#fff6e9", opacity: 0.8 }} className="mt-1 text-sm">
+                        {category.description}
                       </div>
                     </div>
 
-                    <Link href={category.href} className="block">
-                      <button type="button" className="rpg-button w-full">
-                        Comecar
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </button>
-                    </Link>
+                    <div className="mt-auto p-6 pt-4">
+                      <div className="mb-4">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm font-medium" style={{ color: "#fff6e9" }}>
+                            Progresso
+                          </span>
+                          <span className="number text-sm" style={{ color: "#9d4edd" }}>
+                            {isCategoryLoading ? (
+                              <span className="animate-pulse">--%</span>
+                            ) : (
+                              `${progressPercentage}%`
+                            )}
+                          </span>
+                        </div>
+
+                        <div
+                          className="relative h-2 w-full overflow-hidden rounded-full"
+                          style={{ backgroundColor: "rgba(75, 85, 99, 0.3)" }}
+                        >
+                          <div
+                            className={`h-full transition-all duration-300 ${isCategoryLoading ? "animate-pulse" : ""}`}
+                            style={{
+                              width: isCategoryLoading ? "20%" : `${progressWidth}%`,
+                              backgroundColor: isCategoryLoading ? "rgba(157, 78, 221, 0.4)" : "#9d4edd",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <Link href={category.href} className="block">
+                        <button
+                          type="button"
+                          className="rpg-button inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-base font-semibold"
+                        >
+                          Começar
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </button>
+                      </Link>
+                    </div>
                   </div>
                 </GlowCard>
               );

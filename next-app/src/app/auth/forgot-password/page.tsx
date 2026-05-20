@@ -1,52 +1,44 @@
 import Link from "next/link";
-import { ArrowLeft, MessageCircle, ShieldAlert } from "lucide-react";
+import { ArrowLeft, MessageCircle } from "lucide-react";
+import { Header } from "@/components/layout/header";
 
 export default function ForgotPasswordPage() {
     return (
-        <div className="min-h-screen bg-black flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
-                <div className="text-center mb-8">
-                    <Link href="/auth/signin" className="inline-flex items-center text-purple-400 hover:text-purple-300 mb-4 transition-colors">
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Voltar ao Login
-                    </Link>
-
-                    <div className="w-20 h-20 rounded-full bg-red-500/20 border-2 border-red-500 mx-auto mb-4 flex items-center justify-center">
-                        <ShieldAlert className="w-10 h-10 text-red-400" />
+        <div className="min-h-screen bg-black">
+            <Header />
+            <div className="flex items-center justify-center p-4 pt-20">
+                <div className="w-full max-w-2xl rounded-2xl border border-purple-500/40 bg-black/45 p-6 shadow-[0_0_35px_rgba(157,78,221,0.25)] backdrop-blur-sm">
+                    <div className="space-y-1 text-center">
+                        <h1 className="text-2xl font-bold" style={{ color: "#fff6e9", fontFamily: "var(--font-retro)" }}>
+                            Esqueci minha senha
+                        </h1>
+                        <p style={{ color: "#fff6e9", opacity: 0.8 }}>
+                            Redefinição de senha
+                        </p>
                     </div>
 
-                    <h1 className="text-3xl font-bold mb-2" style={{ color: "#fff6e9" }}>
-                        Recuperar Senha
-                    </h1>
-                    <p style={{ color: "#fff6e9", opacity: 0.8 }}>
-                        Entre em contato com o suporte para redefinir sua senha
-                    </p>
-                </div>
-
-                <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-6 text-center">
-                    <div className="mb-6">
-                        <MessageCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
-                        <h2 className="text-xl font-bold mb-2" style={{ color: "#fff6e9" }}>
-                            Suporte via WhatsApp
-                        </h2>
-                        <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                            Nossa equipe esta pronta para ajudar voce a recuperar o acesso a sua conta.
+                    <div className="mt-6 text-center">
+                        <p className="text-base leading-relaxed" style={{ color: "#fff6e9", opacity: 0.9 }}>
+                            Para redefinir sua senha, entre em contato com o nosso suporte pelo WhatsApp. Nossa equipe irá te ajudar rapidamente!
                         </p>
                     </div>
 
                     <a
-                        href="https://wa.me/5511968943004"
+                        href="http://wa.me/555197034968"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full rpg-button flex items-center justify-center gap-2"
+                        className="mt-6 w-full rpg-button flex items-center justify-center gap-2"
                     >
-                        <MessageCircle className="w-5 h-5" />
-                        Falar no WhatsApp
+                        <MessageCircle className="h-5 w-5" />
+                        Falar com o Suporte no WhatsApp
                     </a>
 
-                    <p className="text-xs mt-4" style={{ color: "#fff6e9", opacity: 0.6 }}>
-                        Atendimento de segunda a sexta, das 9h as 18h
-                    </p>
+                    <div className="mt-5 text-center">
+                        <Link href="/auth/signin" className="mx-auto inline-flex items-center text-sm font-medium hover:underline" style={{ color: "#9d4edd" }}>
+                            <ArrowLeft className="mr-1 h-4 w-4" />
+                            Voltar para o login
+                        </Link>
+                    </div>
                 </div>
             </div>
         </div>

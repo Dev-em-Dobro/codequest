@@ -2,9 +2,19 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Filter, Home, Star, Target, Trophy } from "lucide-react";
+import {
+    ChevronLeft,
+    ChevronRight,
+    Code,
+    Gem,
+    Palette,
+    Play,
+    Trophy,
+    Zap,
+    CheckCircle2,
+} from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { GlowCard } from "@/components/ui/spotlight-card";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,57 +36,75 @@ type Progress = {
     completed: boolean;
 };
 
-const validCategories = new Set<ExerciseCategory>(["html", "css", "javascript"]);
+const categoryConfig: Record<ExerciseCategory, {
+    title: string;
+    description: string;
+    icon: typeof Code;
+}> = {
+    html: {
+        title: "HTML",
+        description: "Aprenda HTML através de exercícios práticos",
+        icon: Code,
+    },
+    css: {
+        title: "CSS",
+        description: "Domine estilização e layouts com CSS",
+        icon: Palette,
+    },
+    javascript: {
+        title: "JavaScript",
+        description: "Adicione interatividade com JavaScript",
+        icon: Zap,
+    },
+};
 
 function isValidCategory(value: string): value is ExerciseCategory {
-    return validCategories.has(value as ExerciseCategory);
+    return value === "html" || value === "css" || value === "javascript";
 }
 
-const categoryClass: Record<ExerciseCategory, string> = {
-    html: "guild-html",
-    css: "guild-css",
-    javascript: "guild-js",
-};
+function getDifficultyBadgeClass(difficulty: string): string {
+    if (difficulty === "iniciante") {
+        return "bg-green-100 text-green-800";
+    }
 
-const categoryTitle: Record<ExerciseCategory, string> = {
-    html: "Guilda HTML",
-    css: "Guilda CSS",
-    javascript: "Guilda JavaScript",
-};
+    if (difficulty === "intermediario") {
+        return "bg-yellow-100 text-yellow-800";
+    }
 
-const categoryDescription: Record<ExerciseCategory, string> = {
-    html: "Domine a estrutura e semantica da web",
-    css: "Crie estilos incriveis e layouts responsivos",
-    javascript: "Desenvolva interatividade e logica avancada",
-};
-
-const categoryIcon: Record<ExerciseCategory, string> = {
-    html: "🔥",
-    css: "💧",
-    javascript: "⚡",
-};
+    return "bg-red-100 text-red-800";
+}
 
 export default function ExercisesByCategoryPage() {
-    const { isAuthenticated } = useAuth();
     const params = useParams<{ category: string }>();
-    const categoryParam = params.category?.toLowerCase() ?? "";
+    const categoryParam = (params.category ?? "").toLowerCase();
     const isCategoryValid = isValidCategory(categoryParam);
+    const { isAuthenticated, user } = useAuth();
 
-    const [selectedDifficulty, setSelectedDifficulty] = useState<"all" | "iniciante" | "intermediario" | "avancado">("all");
     const [currentPage, setCurrentPage] = useState(1);
+    const [selectedDifficulty, setSelectedDifficulty] = useState("all");
 
-    const filteredExercisesQuery = useQuery({
+    const queryParams = useMemo(() => {
+        if (!isCategoryValid) {
+            return "";
+        }
+
+        const query = new URLSearchParams({ category: categoryParam });
+        if (selectedDifficulty !== "all") {
+            query.set("difficulty", selectedDifficulty);
+        }
+
+        return query.toString();
+    }, [categoryParam, isCategoryValid, selectedDifficulty]);
+
+    const exercisesQuery = useQuery({
         queryKey: ["/api/exercises", categoryParam, selectedDifficulty],
-        queryFn: () => {
-            const difficultyFilter = selectedDifficulty !== "all" ? `&difficulty=${selectedDifficulty}` : "";
-            return apiClient<Exercise[]>(`/exercises?category=${categoryParam}${difficultyFilter}`);
-        },
+        queryFn: () => apiClient<Exercise[]>(`/exercises?${queryParams}`),
         enabled: isCategoryValid,
-        staleTime: 2 * 60 * 1000,
+        staleTime: 5 * 60 * 1000,
     });
 
     const allCategoryExercisesQuery = useQuery({
-        queryKey: ["/api/exercises", "all", categoryParam],
+        queryKey: ["/api/exercises", categoryParam, "all-for-stats"],
         queryFn: () => apiClient<Exercise[]>(`/exercises?category=${categoryParam}`),
         enabled: isCategoryValid,
         staleTime: 5 * 60 * 1000,
@@ -89,216 +117,277 @@ export default function ExercisesByCategoryPage() {
         staleTime: 2 * 60 * 1000,
     });
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedDifficulty]);
+
+    useEffect(() => {
+        if (!user) {
+            return;
+        }
+
+        void progressQuery.refetch();
+    }, [user, progressQuery]);
+
     if (!isCategoryValid) {
         return (
             <div className="min-h-screen bg-black">
                 <Header />
-                <main className="max-w-4xl mx-auto px-4 py-8">
+                <main className="max-w-4xl mx-auto px-4 py-10">
                     <div className="rounded-xl border border-red-500/40 bg-red-950/40 p-6 text-red-200">
-                        Categoria invalida. Use /exercises/html, /exercises/css ou /exercises/javascript.
+                        Categoria inválida. Use /exercises/html, /exercises/css ou /exercises/javascript.
                     </div>
                 </main>
             </div>
         );
     }
 
-    const exercises = filteredExercisesQuery.data ?? [];
+    const config = categoryConfig[categoryParam];
+    const Icon = config.icon;
+
+    if (exercisesQuery.isLoading || allCategoryExercisesQuery.isLoading) {
+        return (
+            <div className="min-h-screen bg-black">
+                <Header />
+                <div className="flex items-center justify-center h-96">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+                </div>
+            </div>
+        );
+    }
+
+    const filteredExercises = exercisesQuery.data ?? [];
     const allExercisesForStats = allCategoryExercisesQuery.data ?? [];
-    const progressData = progressQuery.data ?? [];
+    const progress = progressQuery.data ?? [];
 
-    const allIds = new Set(allExercisesForStats.map((exercise) => exercise.id));
-    const completedExercises = progressData.filter((entry) => entry.completed && allIds.has(entry.exerciseId));
+    const completedExercises = progress.filter((entry) => entry.completed);
+    const totalCompleted = completedExercises.filter((entry) => allExercisesForStats.some((exercise) => exercise.id === entry.exerciseId)).length;
 
-    const itemsPerPage = 6;
-    const totalPages = Math.ceil(exercises.length / itemsPerPage);
-    const paginatedExercises = exercises.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const exercisesPerPage = 10;
+    const totalPages = Math.max(1, Math.ceil(filteredExercises.length / exercisesPerPage));
+    const startIndex = (currentPage - 1) * exercisesPerPage;
+    const endIndex = startIndex + exercisesPerPage;
+    const paginatedExercises = filteredExercises.slice(startIndex, endIndex);
 
-    const handleDifficultyChange = (difficulty: "all" | "iniciante" | "intermediario" | "avancado") => {
-        setSelectedDifficulty(difficulty);
-        setCurrentPage(1);
-    };
+    const progressPercent = allExercisesForStats.length > 0 ? Math.round((totalCompleted / allExercisesForStats.length) * 100) : 0;
 
     return (
         <div className="min-h-screen bg-black">
             <Header />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex items-center space-x-2 text-sm mb-6" style={{ color: "#fff6e9" }}>
-                    <Link href="/" className="hover:text-purple-400 transition-colors flex items-center">
-                        <Home className="w-4 h-4 mr-1" />
-                        Inicio
-                    </Link>
-                    <span>/</span>
-                    <Link href="/categories" className="hover:text-purple-400 transition-colors">
-                        Categorias
-                    </Link>
-                    <span>/</span>
-                    <span className="text-purple-400">{categoryTitle[categoryParam]}</span>
-                </div>
+                <nav className="mb-6" aria-label="Breadcrumb">
+                    <ol className="flex items-center space-x-2 text-sm">
+                        <li>
+                            <Link href="/" className="flex items-center text-slate-400 hover:text-purple-400 transition-colors">
+                                Início
+                            </Link>
+                        </li>
+                        <ChevronRight className="w-4 h-4 text-slate-600" />
+                        <li>
+                            <span className="text-purple-400 font-medium">Exercícios {config.title}</span>
+                        </li>
+                    </ol>
+                </nav>
 
-                <div className="text-center mb-8">
-                    <div className="text-6xl mb-4">{categoryIcon[categoryParam]}</div>
-                    <h1 className="text-4xl font-bold mb-3" style={{ color: "#fff6e9" }}>
-                        {categoryTitle[categoryParam]}
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold mb-3" style={{ color: "#9d4edd", fontFamily: "var(--font-retro)" }}>
+                        Exercícios {config.title}
                     </h1>
-                    <p className="text-lg" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                        {categoryDescription[categoryParam]}
-                    </p>
+                    <p style={{ color: "#fff6e9" }}>{config.description}</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <GlowCard glowColor="blue" customSize className="p-6 text-center">
-                        <Trophy className="w-8 h-8 mx-auto mb-2 text-blue-400" />
-                        <p className="text-2xl font-bold number" style={{ color: "#9d4edd" }}>
-                            {allExercisesForStats.length}
-                        </p>
-                        <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                            Total de Exercicios
-                        </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <GlowCard glowColor="purple" customSize className="h-full">
+                        <div className="p-6">
+                            <div className="flex items-center space-x-2">
+                                <Trophy className="w-5 h-5" style={{ color: "#9d4edd" }} />
+                                <div>
+                                    <p className="text-sm" style={{ color: "#fff6e9" }}>Exercícios Completados</p>
+                                    <p className="text-2xl font-bold number" style={{ color: "#9d4edd" }}>
+                                        {`${totalCompleted}/${allExercisesForStats.length}`}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </GlowCard>
 
-                    <GlowCard glowColor="green" customSize className="p-6 text-center">
-                        <Star className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                        <p className="text-2xl font-bold number" style={{ color: "#9d4edd" }}>
-                            {completedExercises.length}
-                        </p>
-                        <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                            Completados
-                        </p>
+                    <GlowCard glowColor="purple" customSize className="h-full">
+                        <div className="p-6">
+                            <div className="flex items-center space-x-2">
+                                <Gem className="w-5 h-5" style={{ color: "#9d4edd" }} />
+                                <div>
+                                    <p className="text-sm" style={{ color: "#fff6e9" }}>Pontos Disponíveis</p>
+                                    <p className="text-2xl font-bold number" style={{ color: "#9d4edd" }}>
+                                        {allExercisesForStats.reduce((sum, exercise) => sum + Number(exercise.points || 0), 0)}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </GlowCard>
 
-                    <GlowCard glowColor="purple" customSize className="p-6 text-center">
-                        <Target className="w-8 h-8 mx-auto mb-2 text-purple-400" />
-                        <p className="text-2xl font-bold number" style={{ color: "#9d4edd" }}>
-                            {allExercisesForStats.reduce((total, exercise) => total + Number(exercise.points || 0), 0)}
-                        </p>
-                        <p className="text-sm" style={{ color: "#fff6e9", opacity: 0.8 }}>
-                            Pontos Totais
-                        </p>
+                    <GlowCard glowColor="purple" customSize className="h-full">
+                        <div className="p-6">
+                            <div className="flex items-center space-x-2">
+                                <Icon className="w-5 h-5" style={{ color: "#9d4edd" }} />
+                                <div className="w-full">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-sm" style={{ color: "#fff6e9" }}>Progresso</p>
+                                        <span className="text-sm font-medium ml-4" style={{ color: "#9d4edd" }}>
+                                            {progressPercent}%
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-1 relative h-2 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(75, 85, 99, 0.3)" }}>
+                                        <div
+                                            className="h-full transition-all duration-300"
+                                            style={{
+                                                width: `${progressPercent}%`,
+                                                backgroundColor: "#9d4edd",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </GlowCard>
                 </div>
 
-                <GlowCard glowColor="purple" customSize className="p-6 mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Filter className="w-5 h-5 text-purple-400" />
-                        <h3 className="text-lg font-bold text-white">Filtrar por dificuldade</h3>
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-lg" style={{ backgroundColor: "rgba(255, 255, 255, 0.1)", border: "1px solid rgba(157, 78, 221, 0.3)" }}>
+                    <div>
+                        <label htmlFor="difficulty" className="text-sm font-medium mb-2 block" style={{ color: "#fff6e9" }}>
+                            Filtrar por dificuldade
+                        </label>
+                        <select
+                            id="difficulty"
+                            value={selectedDifficulty}
+                            onChange={(event) => setSelectedDifficulty(event.target.value)}
+                            className="w-56 rounded-md border border-gray-300 bg-white/95 px-3 py-2 text-sm text-gray-800 font-medium"
+                        >
+                            <option value="all">Todas as dificuldades</option>
+                            <option value="iniciante">Iniciante</option>
+                            <option value="intermediario">Intermediário</option>
+                            <option value="avancado">Avançado</option>
+                        </select>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                        {[
-                            { value: "all", label: "Todas" },
-                            { value: "iniciante", label: "Iniciante" },
-                            { value: "intermediario", label: "Intermediario" },
-                            { value: "avancado", label: "Avancado" },
-                        ].map((option) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => handleDifficultyChange(option.value as "all" | "iniciante" | "intermediario" | "avancado")}
-                                className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${selectedDifficulty === option.value
-                                    ? "bg-purple-500 text-white border border-purple-500"
-                                    : "bg-zinc-800 text-zinc-200 border border-zinc-700 hover:border-purple-500"
-                                    }`}
+                    <div className="text-sm px-3 py-2 rounded-md" style={{ color: "#fff6e9", backgroundColor: "rgba(157, 78, 221, 0.2)" }}>
+                        Mostrando {filteredExercises.length === 0 ? 0 : startIndex + 1}-{Math.min(endIndex, filteredExercises.length)} de {filteredExercises.length} exercícios
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {paginatedExercises.map((exercise) => {
+                        const isCompleted = completedExercises.some((entry) => entry.exerciseId === exercise.id);
+
+                        return (
+                            <GlowCard
+                                key={exercise.id}
+                                glowColor={isCompleted ? "green" : "purple"}
+                                customSize
+                                className={`h-full ${isCompleted ? "ring-2 ring-green-500 border-2 border-green-500" : ""}`}
                             >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                </GlowCard>
-
-                {filteredExercisesQuery.isLoading || allCategoryExercisesQuery.isLoading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {Array.from({ length: 6 }).map((_, index) => (
-                            <div key={index} className="animate-pulse h-56 bg-zinc-800 rounded-lg" />
-                        ))}
-                    </div>
-                ) : exercises.length === 0 ? (
-                    <GlowCard glowColor="blue" customSize className="p-8 text-center">
-                        <p className="text-lg text-white">Nenhum exercicio encontrado com os filtros atuais.</p>
-                    </GlowCard>
-                ) : (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                            {paginatedExercises.map((exercise) => {
-                                const completed = progressData.some((entry) => entry.exerciseId === exercise.id && entry.completed);
-                                const difficultyStyle =
-                                    exercise.difficulty === "iniciante"
-                                        ? "bg-green-500/20 text-green-300 border-green-500/30"
-                                        : exercise.difficulty === "intermediario"
-                                            ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
-                                            : "bg-red-500/20 text-red-300 border-red-500/30";
-
-                                return (
-                                    <div key={exercise.id} className={`rounded-xl border p-6 ${categoryClass[exercise.category]}`}>
-                                        <div className="flex items-start justify-between mb-4 gap-3">
-                                            <h3 className="text-lg font-bold leading-snug" style={{ color: "#fff6e9" }}>
+                                <div className="p-6">
+                                    <div className="pb-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <h3 className="text-md font-bold number" style={{ color: "#9d4edd" }}>
                                                 {exercise.title}
                                             </h3>
-                                            <span className="text-sm px-2 py-1 rounded-md bg-purple-500/20 border border-purple-500/30 text-purple-200 number">
-                                                {exercise.points} XP
-                                            </span>
+                                            {isCompleted ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : null}
                                         </div>
 
-                                        <p className="text-sm mb-4 line-clamp-2" style={{ color: "#fff6e9", opacity: 0.85 }}>
+                                        <p className="mt-4 text-sm" style={{ color: "#fff6e9" }}>
                                             {exercise.description}
                                         </p>
 
-                                        <div className="flex items-center gap-2 mb-4 text-xs">
-                                            <span className={`px-2 py-1 rounded border ${difficultyStyle}`}>{exercise.difficulty}</span>
-                                            {completed ? (
-                                                <span className="px-2 py-1 rounded border bg-green-500/20 text-green-300 border-green-500/30">
-                                                    Concluido
-                                                </span>
-                                            ) : null}
+                                        <div className="flex items-center justify-between mt-4 pt-4">
+                                            <span className={`text-xs px-2 py-1 rounded ${getDifficultyBadgeClass(exercise.difficulty)}`}>
+                                                {exercise.difficulty}
+                                            </span>
+                                            <div className="flex items-center text-sm number" style={{ color: "#fff6e9" }}>
+                                                <Gem className="w-4 h-4 mr-1" style={{ color: "#9d4edd" }} />
+                                                {exercise.points} pontos
+                                            </div>
                                         </div>
-
-                                        <Link href={`/exercise/${exercise.id}`} className="block">
-                                            <button type="button" className="w-full rpg-button">
-                                                {completed ? "Revisar Exercicio" : "Iniciar Exercicio"}
-                                            </button>
-                                        </Link>
                                     </div>
+
+                                    <Link href={`/exercise/${exercise.id}`}>
+                                        <button type="button" className="w-full rpg-button">
+                                            <Play className="w-4 h-4 mr-2 inline" />
+                                            {isCompleted ? "Revisar" : "Começar"}
+                                        </button>
+                                    </Link>
+                                </div>
+                            </GlowCard>
+                        );
+                    })}
+                </div>
+
+                {totalPages > 1 ? (
+                    <div className="mt-8 flex items-center justify-center space-x-2">
+                        <button
+                            type="button"
+                            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                            disabled={currentPage === 1}
+                            className="flex items-center rounded-md border border-purple-500/20 bg-gray-700/50 px-3 py-2 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500/20"
+                        >
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            Anterior
+                        </button>
+
+                        <div className="flex items-center space-x-1">
+                            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => {
+                                const showPage = page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                                const showDots = (page === currentPage - 2 && currentPage > 3) || (page === currentPage + 2 && currentPage < totalPages - 2);
+
+                                if (!showPage && !showDots) {
+                                    return null;
+                                }
+
+                                if (showDots) {
+                                    return (
+                                        <span key={`dots-${page}`} className="px-2" style={{ color: "#fff6e9" }}>
+                                            ...
+                                        </span>
+                                    );
+                                }
+
+                                return (
+                                    <button
+                                        key={page}
+                                        type="button"
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`rounded-md px-3 py-2 text-sm font-bold number ${page === currentPage
+                                            ? "bg-purple-500 text-white border border-purple-500"
+                                            : "bg-gray-700/50 text-white border border-purple-500/20 hover:bg-purple-500/20"
+                                            }`}
+                                    >
+                                        {page}
+                                    </button>
                                 );
                             })}
                         </div>
 
-                        {totalPages > 1 ? (
-                            <div className="flex items-center justify-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                                    disabled={currentPage <= 1}
-                                    className="px-3 py-2 rounded-md border border-zinc-700 bg-zinc-800 text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
+                        <button
+                            type="button"
+                            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                            disabled={currentPage === totalPages}
+                            className="flex items-center rounded-md border border-purple-500/20 bg-gray-700/50 px-3 py-2 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500/20"
+                        >
+                            Próximo
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                        </button>
+                    </div>
+                ) : null}
 
-                                {Array.from({ length: totalPages }).map((_, index) => (
-                                    <button
-                                        key={index}
-                                        type="button"
-                                        onClick={() => setCurrentPage(index + 1)}
-                                        className={`px-3 py-2 rounded-md text-sm font-bold number ${currentPage === index + 1
-                                            ? "bg-purple-500 text-white border border-purple-500"
-                                            : "bg-zinc-800 text-zinc-200 border border-zinc-700"
-                                            }`}
-                                    >
-                                        {index + 1}
-                                    </button>
-                                ))}
-
-                                <button
-                                    type="button"
-                                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                                    disabled={currentPage >= totalPages}
-                                    className="px-3 py-2 rounded-md border border-zinc-700 bg-zinc-800 text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
-                            </div>
-                        ) : null}
-                    </>
-                )}
+                {filteredExercises.length === 0 ? (
+                    <div className="text-center py-12">
+                        <Icon className="w-16 h-16 mx-auto mb-4" style={{ color: "#9d4edd" }} />
+                        <h3 className="text-lg font-semibold mb-2" style={{ color: "#9d4edd" }}>
+                            Nenhum exercício {config.title} encontrado
+                        </h3>
+                    </div>
+                ) : null}
             </main>
         </div>
     );
