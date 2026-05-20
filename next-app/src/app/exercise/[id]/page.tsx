@@ -14,6 +14,7 @@ import {
     Sparkles,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
+import { CodeEditor } from "@/components/code-editor";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 
@@ -99,30 +100,6 @@ function formatDifficulty(difficulty: Exercise["difficulty"]): string {
     return "Iniciante";
 }
 
-function getAvailableTabs(category: ExerciseCategory | undefined): Array<keyof CodeTriplet> {
-    if (category === "html") {
-        return ["html"];
-    }
-
-    if (category === "css") {
-        return ["html", "css"];
-    }
-
-    if (category === "javascript") {
-        return ["javascript"];
-    }
-
-    return ["html", "css", "javascript"];
-}
-
-function getTabLabel(tab: keyof CodeTriplet): string {
-    if (tab === "javascript") {
-        return "JavaScript";
-    }
-
-    return tab.toUpperCase();
-}
-
 export default function ExerciseDetailPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
@@ -130,7 +107,6 @@ export default function ExerciseDetailPage() {
     const { isAuthenticated } = useAuth();
 
     const exerciseId = typeof params.id === "string" ? params.id : "";
-    const [activeTab, setActiveTab] = useState<keyof CodeTriplet>("html");
     const [draftCode, setDraftCode] = useState<{ exerciseId: string; code: CodeTriplet } | null>(null);
     const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
     const [showTips, setShowTips] = useState(false);
@@ -168,13 +144,6 @@ export default function ExerciseDetailPage() {
     const progressCode = progressQuery.data?.userCode ? normalizeCode(progressQuery.data.userCode) : null;
     const initialCode = progressCode ?? exerciseBaseCode;
     const code = draftCode?.exerciseId === exerciseId ? draftCode.code : initialCode;
-
-    const availableTabs = useMemo(
-        () => getAvailableTabs(exerciseQuery.data?.category),
-        [exerciseQuery.data?.category],
-    );
-
-    const resolvedActiveTab = availableTabs.includes(activeTab) ? activeTab : availableTabs[0];
 
     const previewDocument = useMemo(() => {
         return `
@@ -260,13 +229,10 @@ export default function ExerciseDetailPage() {
             }),
     });
 
-    const updateCode = (tab: keyof CodeTriplet, value: string) => {
+    const updateCode = (nextCode: CodeTriplet) => {
         setDraftCode({
             exerciseId,
-            code: {
-                ...code,
-                [tab]: value,
-            },
+            code: nextCode,
         });
     };
 
@@ -438,19 +404,19 @@ export default function ExerciseDetailPage() {
                                             }
                                         }}
                                         className={`w-full rounded-lg border p-3 text-left transition-colors ${itemCompleted
-                                                ? "border-green-400/70 bg-green-600/40 hover:bg-green-600/50"
-                                                : isCurrentExercise
-                                                    ? "border-[#9d4edd] bg-[#9d4edd]/10"
-                                                    : "border-white/15 bg-black/20 hover:bg-white/10"
+                                            ? "border-green-400/70 bg-green-600/40 hover:bg-green-600/50"
+                                            : isCurrentExercise
+                                                ? "border-[#9d4edd] bg-[#9d4edd]/10"
+                                                : "border-white/15 bg-black/20 hover:bg-white/10"
                                             }`}
                                     >
                                         <div className="flex items-center">
                                             <div
                                                 className={`mr-3 flex h-7 w-7 items-center justify-center rounded-full ${itemCompleted
-                                                        ? "bg-green-500"
-                                                        : isCurrentExercise
-                                                            ? "bg-[#9d4edd]"
-                                                            : "bg-white/20"
+                                                    ? "bg-green-500"
+                                                    : isCurrentExercise
+                                                        ? "bg-[#9d4edd]"
+                                                        : "bg-white/20"
                                                     }`}
                                             >
                                                 {itemCompleted ? (
@@ -540,32 +506,11 @@ export default function ExerciseDetailPage() {
                             </h3>
                             <p className="mt-1 text-sm text-slate-300">Escreva seu codigo abaixo</p>
 
-                            <div className="mt-3 overflow-hidden rounded-md border border-zinc-700">
-                                <div className="flex border-b border-gray-300 bg-[#f3f4f6]">
-                                    {availableTabs.map((tab) => {
-                                        const active = tab === resolvedActiveTab;
-
-                                        return (
-                                            <button
-                                                key={tab}
-                                                type="button"
-                                                onClick={() => setActiveTab(tab)}
-                                                className={`px-4 py-2 text-sm font-medium transition-colors ${active
-                                                        ? "bg-white border-b-2 border-blue-500 text-gray-900"
-                                                        : "text-gray-600 hover:bg-gray-200"
-                                                    }`}
-                                            >
-                                                {getTabLabel(tab)}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                <textarea
-                                    value={code[resolvedActiveTab]}
-                                    onChange={(event) => updateCode(resolvedActiveTab, event.target.value)}
-                                    className="h-[420px] w-full resize-none bg-[#1e1e1e] p-3 font-mono text-sm text-slate-100 outline-none"
-                                    spellCheck={false}
+                            <div className="mt-3 overflow-hidden rounded-md border border-zinc-700 bg-black/20">
+                                <CodeEditor
+                                    initialCode={code}
+                                    onChange={updateCode}
+                                    exerciseCategory={exercise.category}
                                 />
                             </div>
 
