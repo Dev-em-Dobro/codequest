@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { storage, reviewExerciseCode } from "@/lib/server/deps";
-import { parseJsonBody, internalError } from "@/lib/server/http";
+import { parseJsonBody } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import type { CodeTriplet } from "@/lib/server/storage-types";
 
@@ -42,6 +42,14 @@ export async function POST(request: Request, { params }: Params) {
 
         return NextResponse.json(review);
     } catch {
-        return internalError();
+        return NextResponse.json(
+            {
+                feedback: "Desculpe, não foi possível analisar seu código no momento.",
+                suggestions: ["Tente novamente em alguns instantes"],
+                isCorrect: false,
+                score: 0,
+            },
+            { status: 500 },
+        );
     }
 }

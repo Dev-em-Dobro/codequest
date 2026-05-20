@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getExerciseHint, storage } from "@/lib/server/deps";
-import { parseJsonBody, internalError } from "@/lib/server/http";
+import { parseJsonBody } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import type { CodeTriplet } from "@/lib/server/storage-types";
 
@@ -41,6 +41,11 @@ export async function POST(request: Request, { params }: Params) {
 
         return NextResponse.json({ hint });
     } catch {
-        return internalError();
+        return NextResponse.json(
+            {
+                hint: "Tente revisar as instruções do exercício e continue experimentando!",
+            },
+            { status: 500 },
+        );
     }
 }

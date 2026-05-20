@@ -46,17 +46,11 @@ type ProgressEntry = {
     pointsEarned: number;
 };
 
-type ValidationResult = {
-    isValid: boolean;
-    message: string;
-    score: number;
-};
-
-type ValidationResponse = {
-    isValid: boolean;
-    overallScore: number;
-    results: ValidationResult[];
-    jsOutput?: string;
+type AiReviewResponse = {
+    feedback: string;
+    suggestions: string[];
+    score?: number;
+    isCorrect?: boolean;
 };
 
 type StatusMessage = {
@@ -74,6 +68,14 @@ function normalizeCode(code: Partial<CodeTriplet> | undefined): CodeTriplet {
 
 function emptyCode(): CodeTriplet {
     return { html: "", css: "", javascript: "" };
+}
+
+function hasCodeContent(code: CodeTriplet): boolean {
+    return Boolean(code.html.trim() || code.css.trim() || code.javascript.trim());
+}
+
+function codeChanged(a: CodeTriplet, b: CodeTriplet): boolean {
+    return a.html !== b.html || a.css !== b.css || a.javascript !== b.javascript;
 }
 
 function statusClass(tone: StatusMessage["tone"]): string {
@@ -110,6 +112,16 @@ export default function ExerciseDetailPage() {
     const [draftCode, setDraftCode] = useState<{ exerciseId: string; code: CodeTriplet } | null>(null);
     const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
     const [showTips, setShowTips] = useState(false);
+    const [lastPersistedCode, setLastPersistedCode] = useState<{ exerciseId: string; code: CodeTriplet } | null>(null);
+    const [jsExecutionState, setJsExecutionState] = useState<{
+        exerciseId: string;
+        code: string;
+        runCount: number;
+    }>({
+        exerciseId: "",
+        code: "",
+        runCount: 0,
+    });
 
     const exerciseQuery = useQuery({
         queryKey: ["/api/exercises", exerciseId],
@@ -144,8 +156,27 @@ export default function ExerciseDetailPage() {
     const progressCode = progressQuery.data?.userCode ? normalizeCode(progressQuery.data.userCode) : null;
     const initialCode = progressCode ?? exerciseBaseCode;
     const code = draftCode?.exerciseId === exerciseId ? draftCode.code : initialCode;
+    const persistedCode = lastPersistedCode?.exerciseId === exerciseId
+        ? normalizeCode(lastPersistedCode.code)
+        : initialCode;
+    const isJavaScriptExercise = exerciseQuery.data?.category === "javascript";
+    const executedJavaScript = jsExecutionState.exerciseId === exerciseId ? jsExecutionState.code : "";
+    const previewRunCount = jsExecutionState.exerciseId === exerciseId ? jsExecutionState.runCount : 0;
 
     const previewDocument = useMemo(() => {
+        const previewJavaScript = isJavaScriptExercise ? executedJavaScript : code.javascript;
+        const scriptBlock = previewJavaScript.trim().length > 0
+            ? `
+                <script>
+                    try {
+                        ${previewJavaScript}
+                    } catch (error) {
+                        console.error(error);
+                    }
+                </script>
+            `
+            : "";
+
         return `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -164,17 +195,11 @@ export default function ExerciseDetailPage() {
       </head>
       <body>
         ${code.html}
-        <script>
-          try {
-            ${code.javascript}
-          } catch (error) {
-            console.error(error);
-          }
-        </script>
+                ${scriptBlock}
       </body>
       </html>
     `;
-    }, [code.css, code.html, code.javascript]);
+    }, [code.css, code.html, code.javascript, executedJavaScript, isJavaScriptExercise]);
 
     const sidebarExercises = useMemo(() => {
         const exercises = exercisesQuery.data ?? [];
@@ -197,6 +222,7 @@ export default function ExerciseDetailPage() {
     const progressPercentage = totalInCategory > 0 ? Math.round((completedInCategory / totalInCategory) * 100) : 0;
 
     const hasVisualOutput = code.html.trim().length > 0 || code.css.trim().length > 0;
+    const hasPreviewOutput = hasVisualOutput || isJavaScriptExercise;
 
     const saveCodeMutation = useMutation({
         mutationFn: () =>
@@ -209,9 +235,9 @@ export default function ExerciseDetailPage() {
             }),
     });
 
-    const validateMutation = useMutation({
+    const aiReviewMutation = useMutation({
         mutationFn: () =>
-            apiClient<ValidationResponse>(`/exercises/${exerciseId}/validate`, {
+            apiClient<AiReviewResponse>(`/exercises/${exerciseId}/ai-review`, {
                 method: "POST",
                 body: {
                     userCode: code,
@@ -249,6 +275,10 @@ export default function ExerciseDetailPage() {
 
         try {
             await saveCodeMutation.mutateAsync();
+            setLastPersistedCode({
+                exerciseId,
+                code: normalizeCode(code),
+            });
             setStatusMessage({
                 tone: "success",
                 text: "Codigo salvo com sucesso.",
@@ -263,22 +293,44 @@ export default function ExerciseDetailPage() {
         }
     };
 
-    const handleSubmitForCorrection = async () => {
-        if (!isAuthenticated) {
-            navigateToSignIn();
+    const saveCodeIfNeeded = async () => {
+        const normalizedCurrentCode = normalizeCode(code);
+
+        if (!hasCodeContent(normalizedCurrentCode)) {
             return;
         }
 
-        try {
-            const validation = await validateMutation.mutateAsync();
+        if (!codeChanged(normalizedCurrentCode, persistedCode)) {
+            return;
+        }
 
-            if (!validation.isValid) {
-                const firstFailure = validation.results.find((result) => !result.isValid);
-                const firstMessage = firstFailure?.message ?? "Sua solucao ainda nao atende os requisitos.";
-                const outputInfo = validation.jsOutput ? ` Saida JS: ${validation.jsOutput}` : "";
+        await saveCodeMutation.mutateAsync();
+        setLastPersistedCode({
+            exerciseId,
+            code: normalizedCurrentCode,
+        });
+    };
+
+    const handleSubmitForCorrection = async () => {
+        try {
+            try {
+                await saveCodeIfNeeded();
+            } catch (saveError) {
+                console.warn("Failed to save code before AI review:", saveError);
+            }
+
+            const review = await aiReviewMutation.mutateAsync();
+            const reviewScore = typeof review.score === "number" ? review.score : 0;
+            const isReviewApproved = Boolean(review.isCorrect) && reviewScore >= 100;
+
+            if (!isReviewApproved) {
+                const suggestionsText = review.suggestions && review.suggestions.length > 0
+                    ? ` Sugestoes: ${review.suggestions.join(" | ")}`
+                    : "";
+
                 setStatusMessage({
                     tone: "error",
-                    text: `${Math.round(validation.overallScore)}% correto. ${firstMessage}${outputInfo}`,
+                    text: `${review.feedback} (${Math.round(reviewScore)}%)${suggestionsText}`,
                 });
                 return;
             }
@@ -287,7 +339,7 @@ export default function ExerciseDetailPage() {
                 await completeMutation.mutateAsync();
                 setStatusMessage({
                     tone: "success",
-                    text: `Parabens! Exercicio concluido com ${Math.round(validation.overallScore)}% de precisao.`,
+                    text: `Parabens! Exercicio concluido! A IA validou seu codigo. Voce ganhou ${exerciseQuery.data?.points ?? 10} pontos!`,
                 });
 
                 void queryClient.invalidateQueries({ queryKey: ["/api/progress", exerciseId] });
@@ -298,14 +350,22 @@ export default function ExerciseDetailPage() {
 
             setStatusMessage({
                 tone: "success",
-                text: `Codigo validado com sucesso (${Math.round(validation.overallScore)}%).`,
+                text: `Codigo correto! Este exercicio ja foi concluido anteriormente. ${review.feedback}`,
             });
         } catch (error) {
             setStatusMessage({
                 tone: "error",
-                text: error instanceof Error ? error.message : "Falha ao validar o exercicio.",
+                text: error instanceof Error ? error.message : "Falha ao analisar o exercicio.",
             });
         }
+    };
+
+    const handleRunJavaScript = () => {
+        setJsExecutionState((current) => ({
+            exerciseId,
+            code: code.javascript,
+            runCount: current.exerciseId === exerciseId ? current.runCount + 1 : 1,
+        }));
     };
 
     if (exerciseQuery.isLoading) {
@@ -535,24 +595,38 @@ export default function ExerciseDetailPage() {
                             <p className="mt-1 text-sm text-slate-300">Veja o resultado do seu codigo em tempo real</p>
 
                             <div className="mt-3">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        void handleSubmitForCorrection();
-                                    }}
-                                    disabled={validateMutation.isPending || completeMutation.isPending}
-                                    className="rpg-button inline-flex items-center px-4 py-2 text-sm disabled:opacity-50"
-                                >
-                                    <Sparkles className="mr-2 h-4 w-4" />
-                                    {validateMutation.isPending || completeMutation.isPending
-                                        ? "Corrigindo..."
-                                        : "Enviar para correcao"}
-                                </button>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void handleSubmitForCorrection();
+                                        }}
+                                        disabled={aiReviewMutation.isPending || completeMutation.isPending}
+                                        className="rpg-button inline-flex items-center px-4 py-2 text-sm disabled:opacity-50"
+                                    >
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        {aiReviewMutation.isPending || completeMutation.isPending
+                                            ? "Analisando..."
+                                            : "Enviar para correcao"}
+                                    </button>
+
+                                    {isJavaScriptExercise ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleRunJavaScript}
+                                            className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/20 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10"
+                                        >
+                                            <Play className="h-3.5 w-3.5" />
+                                            Executar JS
+                                        </button>
+                                    ) : null}
+                                </div>
                             </div>
 
                             <div className="mt-3 overflow-hidden rounded-md border border-zinc-700 bg-[#f3f4f6]">
-                                {hasVisualOutput ? (
+                                {hasPreviewOutput ? (
                                     <iframe
+                                        key={isJavaScriptExercise ? `${exerciseId}-${previewRunCount}` : undefined}
                                         title="Preview do exercicio"
                                         srcDoc={previewDocument}
                                         sandbox="allow-scripts"

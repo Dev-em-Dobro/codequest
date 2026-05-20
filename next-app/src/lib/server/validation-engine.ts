@@ -71,6 +71,40 @@ export class ValidationEngine {
             return { isValid: true, message: "Excelente! Parágrafo criado corretamente.", score: 100 };
         }
 
+        if (exercise.id === "html-lista-frutas") {
+            if (!htmlLower.includes("<ul>") || !htmlLower.includes("</ul>")) {
+                return {
+                    isValid: false,
+                    message: "Exercício requer uma lista não ordenada <ul>.",
+                    score: 30,
+                };
+            }
+
+            const liCount = (html.match(/<li>/gi) || []).length;
+            if (liCount < 3) {
+                return {
+                    isValid: false,
+                    message: `Lista deve ter pelo menos 3 itens. Você tem ${liCount}.`,
+                    score: 50,
+                };
+            }
+
+            const hasFruits = ["maçã", "banana", "laranja"].some((fruit) => htmlLower.includes(fruit));
+            if (!hasFruits) {
+                return {
+                    isValid: false,
+                    message: "Lista deve incluir algumas das frutas mencionadas: maçã, banana, laranja.",
+                    score: 70,
+                };
+            }
+
+            return {
+                isValid: true,
+                message: "Perfeito! Lista de frutas criada corretamente.",
+                score: 100,
+            };
+        }
+
         const hasValidStructure = htmlLower.includes("<") && htmlLower.includes(">");
         if (!hasValidStructure) {
             return { isValid: false, message: "HTML deve conter tags válidas.", score: 10 };
@@ -93,13 +127,37 @@ export class ValidationEngine {
             if (!cssLower.includes("background-color") && !cssLower.includes("background:")) {
                 return { isValid: false, message: "Botão deve ter uma cor de fundo (background-color).", score: 40 };
             }
-            if (!cssLower.includes("color:")) {
+            if (!cssLower.includes("color:") && !cssLower.includes("color ")) {
                 return { isValid: false, message: "Botão deve ter cor do texto definida.", score: 60 };
             }
             if (!cssLower.includes(":hover")) {
                 return { isValid: false, message: "Adicione um efeito hover para o botão.", score: 80 };
             }
             return { isValid: true, message: "Excelente! Botão estilizado com cores e efeito hover.", score: 100 };
+        }
+
+        if (exercise.id === "css-flexbox-basico") {
+            if (!cssLower.includes("display: flex") && !cssLower.includes("display:flex")) {
+                return {
+                    isValid: false,
+                    message: "Deve usar 'display: flex' no container.",
+                    score: 30,
+                };
+            }
+
+            if (!cssLower.includes("justify-content")) {
+                return {
+                    isValid: false,
+                    message: "Use 'justify-content' para alinhar os elementos.",
+                    score: 60,
+                };
+            }
+
+            return {
+                isValid: true,
+                message: "Perfeito! Flexbox implementado corretamente.",
+                score: 100,
+            };
         }
 
         const hasValidCSS = cssLower.includes("{") && cssLower.includes("}");

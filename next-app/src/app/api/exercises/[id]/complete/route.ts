@@ -7,9 +7,9 @@ export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function POST(request: Request, { params }: Params) {
+export async function POST(_request: Request, { params }: Params) {
     try {
-        const userId = getCurrentUserId(request);
+        const userId = getCurrentUserId(_request);
         if (!userId) {
             return unauthorized();
         }
