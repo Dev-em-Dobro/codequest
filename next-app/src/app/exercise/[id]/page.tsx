@@ -12,6 +12,7 @@ import {
     Home,
     Play,
     Sparkles,
+    Trophy,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { CodeEditor } from "@/components/code-editor";
@@ -395,6 +396,14 @@ export default function ExerciseDetailPage() {
     }
 
     const exercise = exerciseQuery.data;
+    const displayExerciseOrder = (() => {
+        if (typeof exercise.order === "number" && exercise.order > 0) {
+            return exercise.order;
+        }
+
+        const currentIndex = sidebarExercises.findIndex((item) => item.id === exercise.id);
+        return currentIndex >= 0 ? currentIndex + 1 : "-";
+    })();
 
     return (
         <div className="min-h-screen bg-black">
@@ -448,11 +457,12 @@ export default function ExerciseDetailPage() {
                         </h3>
 
                         <div className="space-y-3">
-                            {sidebarExercises.map((item) => {
+                            {sidebarExercises.map((item, index) => {
                                 const itemCompleted = sidebarProgress.some(
                                     (progress) => progress.exerciseId === item.id && progress.completed,
                                 );
                                 const isCurrentExercise = item.id === exerciseId;
+                                const displayItemOrder = typeof item.order === "number" && item.order > 0 ? item.order : index + 1;
 
                                 return (
                                     <button
@@ -484,7 +494,7 @@ export default function ExerciseDetailPage() {
                                                 ) : isCurrentExercise ? (
                                                     <Play className="h-3 w-3 text-white" />
                                                 ) : (
-                                                    <span className="number text-xs text-white">{item.order ?? "-"}</span>
+                                                    <span className="number text-xs text-white">{displayItemOrder}</span>
                                                 )}
                                             </div>
                                             <div className="min-w-0 flex-1">
@@ -507,8 +517,13 @@ export default function ExerciseDetailPage() {
                     <section className="rounded-lg border border-gray-300 bg-[#f4f4f4] p-4 shadow-sm">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <h1 className="text-[38px] font-bold text-[#1f2937]">{exercise.title}</h1>
-                                <p className="mt-1 text-sm text-gray-600">Exercicio {exercise.order ?? "-"}</p>
+                                <h1
+                                    className="text-xl font-bold leading-snug text-[#1f2937] sm:text-2xl"
+                                    style={{ fontFamily: "var(--font-inter)" }}
+                                >
+                                    {exercise.title}
+                                </h1>
+                                <p className="mt-1 text-sm text-gray-600">Exercicio {displayExerciseOrder}</p>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -521,7 +536,9 @@ export default function ExerciseDetailPage() {
                         </div>
 
                         <div className="mt-4 rounded-md border border-blue-100 bg-[#e7edf8] p-4">
-                            <h2 className="text-lg font-semibold text-blue-900">📝 Instrucoes do Exercicio</h2>
+                            <h2 className="text-base font-semibold text-blue-900 sm:text-lg" style={{ fontFamily: "var(--font-inter)" }}>
+                                📝 Instrucoes do Exercicio
+                            </h2>
                             <p className="mt-2 leading-relaxed text-blue-800">{exercise.instructions}</p>
 
                             {exercise.category === "javascript" ? (
@@ -543,8 +560,16 @@ export default function ExerciseDetailPage() {
                         </div>
 
                         {progressQuery.data?.completed ? (
-                            <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                                Exercicio concluido. Pontos recebidos: <span className="number">{exercise.points}</span>
+                            <div className="mt-4 rounded-md border border-green-100 bg-linear-to-r from-green-50 to-emerald-50 p-4 text-green-700">
+                                <div className="flex items-center gap-3">
+                                    <div className="rounded-full bg-green-100 p-2">
+                                        <Trophy className="h-5 w-5 text-green-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-green-700">Exercicio Concluido!</p>
+                                        <p className="text-sm text-green-600">Voce ganhou {exercise.points} pontos</p>
+                                    </div>
+                                </div>
                             </div>
                         ) : null}
 
@@ -561,7 +586,7 @@ export default function ExerciseDetailPage() {
 
                     <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
                         <div className="rounded-xl border border-zinc-700 bg-[#0b0c10] p-4">
-                            <h3 className="text-3xl text-white" style={{ fontFamily: "var(--font-retro)" }}>
+                            <h3 className="text-xl text-white sm:text-2xl" style={{ fontFamily: "var(--font-retro)" }}>
                                 Editor de Codigo
                             </h3>
                             <p className="mt-1 text-sm text-slate-300">Escreva seu codigo abaixo</p>
@@ -589,7 +614,7 @@ export default function ExerciseDetailPage() {
                         </div>
 
                         <div className="rounded-xl border border-zinc-700 bg-[#0b0c10] p-4">
-                            <h3 className="text-3xl text-white" style={{ fontFamily: "var(--font-retro)" }}>
+                            <h3 className="text-xl text-white sm:text-2xl" style={{ fontFamily: "var(--font-retro)" }}>
                                 Visualizacao
                             </h3>
                             <p className="mt-1 text-sm text-slate-300">Veja o resultado do seu codigo em tempo real</p>
