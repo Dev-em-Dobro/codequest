@@ -81,14 +81,14 @@ function codeChanged(a: CodeTriplet, b: CodeTriplet): boolean {
 
 function statusClass(tone: StatusMessage["tone"]): string {
     if (tone === "success") {
-        return "border-green-500/50 bg-green-900/25 text-green-200";
+        return "border-emerald-300/80 bg-emerald-950 text-emerald-50";
     }
 
     if (tone === "error") {
-        return "border-red-500/50 bg-red-900/25 text-red-200";
+        return "border-rose-300/80 bg-rose-950 text-rose-50";
     }
 
-    return "border-blue-500/50 bg-blue-900/25 text-blue-200";
+    return "border-sky-300/80 bg-sky-950 text-sky-50";
 }
 
 function formatDifficulty(difficulty: Exercise["difficulty"]): string {
@@ -689,7 +689,7 @@ export default function ExerciseDetailPage() {
                     <p
                         role="status"
                         aria-live="polite"
-                        className={`pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-lg backdrop-blur-sm ${statusClass(statusMessage.tone)}`}
+                        className={`pointer-events-auto max-h-[40vh] overflow-y-auto rounded-md border px-3 py-2 text-sm leading-relaxed shadow-2xl ${statusClass(statusMessage.tone)}`}
                     >
                         {statusMessage.text}
                     </p>
