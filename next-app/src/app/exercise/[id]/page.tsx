@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Check,
@@ -123,6 +123,20 @@ export default function ExerciseDetailPage() {
         code: "",
         runCount: 0,
     });
+
+    useEffect(() => {
+        if (!statusMessage) {
+            return;
+        }
+
+        const timer = globalThis.setTimeout(() => {
+            setStatusMessage(null);
+        }, 10000);
+
+        return () => {
+            globalThis.clearTimeout(timer);
+        };
+    }, [statusMessage]);
 
     const exerciseQuery = useQuery({
         queryKey: ["/api/exercises", exerciseId],
@@ -665,15 +679,22 @@ export default function ExerciseDetailPage() {
                                 )}
                             </div>
 
-                            {statusMessage ? (
-                                <p className={`mt-3 rounded-md border px-3 py-2 text-sm ${statusClass(statusMessage.tone)}`}>
-                                    {statusMessage.text}
-                                </p>
-                            ) : null}
                         </div>
                     </section>
                 </main>
             </div>
+
+            {statusMessage ? (
+                <div className="pointer-events-none fixed bottom-6 right-6 z-50 w-[calc(100%-2rem)] max-w-md animate-in slide-in-from-bottom-4 fade-in-0 duration-300">
+                    <p
+                        role="status"
+                        aria-live="polite"
+                        className={`pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-lg backdrop-blur-sm ${statusClass(statusMessage.tone)}`}
+                    >
+                        {statusMessage.text}
+                    </p>
+                </div>
+            ) : null}
         </div>
     );
 }
