@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ArrowLeft,
     CheckCircle2,
@@ -95,6 +95,20 @@ export default function SimpleExercisePage() {
     const [isCompleted, setIsCompleted] = useState(false);
     const [previewKey, setPreviewKey] = useState(0);
     const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+
+    useEffect(() => {
+        if (!feedback) {
+            return;
+        }
+
+        const timer = globalThis.setTimeout(() => {
+            setFeedback(null);
+        }, 10000);
+
+        return () => {
+            globalThis.clearTimeout(timer);
+        };
+    }, [feedback]);
 
     const previewDocument = useMemo(() => {
         return `
@@ -257,17 +271,6 @@ export default function SimpleExercisePage() {
                     </div>
                 </div>
 
-                {feedback ? (
-                    <div
-                        className={`mb-6 rounded-lg border px-4 py-3 text-sm ${feedback.type === "success"
-                            ? "bg-green-900/20 border-green-500/40 text-green-200"
-                            : "bg-red-900/20 border-red-500/40 text-red-200"
-                            }`}
-                    >
-                        {feedback.message}
-                    </div>
-                ) : null}
-
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <GlowCard glowColor="purple" customSize className="h-full">
                         <div className="p-6 space-y-4">
@@ -369,6 +372,21 @@ export default function SimpleExercisePage() {
                     </GlowCard>
                 </div>
             </main>
+
+            {feedback ? (
+                <div className="fixed bottom-6 right-6 z-50 w-[calc(100%-2rem)] max-w-md animate-in slide-in-from-bottom-4 fade-in-0 duration-300">
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        className={`rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur-sm ${feedback.type === "success"
+                            ? "bg-green-900/90 border-green-500/40 text-green-200"
+                            : "bg-red-900/90 border-red-500/40 text-red-200"
+                            }`}
+                    >
+                        {feedback.message}
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }
