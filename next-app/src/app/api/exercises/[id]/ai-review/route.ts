@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
 import { storage, reviewExerciseCode } from "@/lib/server/deps";
 import { parseJsonBody } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
@@ -11,6 +12,11 @@ type ReviewPayload = { userCode?: Partial<CodeTriplet> };
 
 export async function POST(request: Request, { params }: Params) {
     try {
+        const userId = getCurrentUserId(request);
+        if (!userId) {
+            return unauthorized();
+        }
+
         const limited = enforceRateLimit(request, {
             id: "ai-review",
             windowMs: 15 * 60 * 1000,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -75,10 +75,11 @@ function getDifficultyBadgeClass(difficulty: string): string {
 }
 
 export default function ExercisesByCategoryPage() {
+    const router = useRouter();
     const params = useParams<{ category: string }>();
     const categoryParam = (params.category ?? "").toLowerCase();
     const isCategoryValid = isValidCategory(categoryParam);
-    const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated, isLoading: authLoading, user } = useAuth();
 
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedDifficulty, setSelectedDifficulty] = useState("all");
@@ -118,6 +119,15 @@ export default function ExercisesByCategoryPage() {
     });
 
     useEffect(() => {
+        if (authLoading || isAuthenticated) {
+            return;
+        }
+
+        const redirectPath = `/exercises/${categoryParam}`;
+        router.replace(`/auth/signin?redirect=${encodeURIComponent(redirectPath)}`);
+    }, [authLoading, isAuthenticated, categoryParam, router]);
+
+    useEffect(() => {
         setCurrentPage(1);
     }, [selectedDifficulty]);
 
@@ -128,6 +138,17 @@ export default function ExercisesByCategoryPage() {
 
         void progressQuery.refetch();
     }, [user, progressQuery]);
+
+    if (authLoading || !isAuthenticated) {
+        return (
+            <div className="min-h-screen bg-black">
+                <Header />
+                <div className="flex items-center justify-center h-96">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+                </div>
+            </div>
+        );
+    }
 
     if (!isCategoryValid) {
         return (
