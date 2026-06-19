@@ -107,7 +107,7 @@ export default function ExerciseDetailPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
     const queryClient = useQueryClient();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
 
     const exerciseId = typeof params.id === "string" ? params.id : "";
     const [draftCode, setDraftCode] = useState<{ exerciseId: string; code: CodeTriplet } | null>(null);
@@ -123,6 +123,15 @@ export default function ExerciseDetailPage() {
         code: "",
         runCount: 0,
     });
+
+    useEffect(() => {
+        if (authLoading || isAuthenticated || !exerciseId) {
+            return;
+        }
+
+        const redirectPath = `/exercise/${exerciseId}`;
+        router.replace(`/auth/signin?redirect=${encodeURIComponent(redirectPath)}`);
+    }, [authLoading, isAuthenticated, exerciseId, router]);
 
     useEffect(() => {
         if (!statusMessage) {
@@ -327,6 +336,11 @@ export default function ExerciseDetailPage() {
     };
 
     const handleSubmitForCorrection = async () => {
+        if (!isAuthenticated) {
+            navigateToSignIn();
+            return;
+        }
+
         try {
             try {
                 await saveCodeIfNeeded();
@@ -383,7 +397,7 @@ export default function ExerciseDetailPage() {
         }));
     };
 
-    if (exerciseQuery.isLoading) {
+    if (authLoading || !isAuthenticated || exerciseQuery.isLoading) {
         return (
             <div className="min-h-screen bg-black">
                 <Header />
