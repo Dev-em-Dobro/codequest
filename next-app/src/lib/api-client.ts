@@ -14,6 +14,23 @@ function getSessionId(): string | null {
     return localStorage.getItem("codequest_session_id");
 }
 
+function handleUnauthorized(): void {
+    if (globalThis.window === undefined) {
+        return;
+    }
+
+    localStorage.removeItem("codequest_user");
+    localStorage.removeItem("codequest_session_id");
+
+    const { pathname, search } = globalThis.location;
+    if (pathname.startsWith("/auth/")) {
+        return;
+    }
+
+    const redirectTarget = `${pathname}${search}`;
+    globalThis.location.href = `/auth/signin?redirect=${encodeURIComponent(redirectTarget)}`;
+}
+
 export async function apiClient<T>(path: string, options: ApiClientOptions = {}): Promise<T> {
     const method = options.method ?? "GET";
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -37,6 +54,10 @@ export async function apiClient<T>(path: string, options: ApiClientOptions = {})
     });
 
     if (!response.ok) {
+        if (response.status === 401) {
+            handleUnauthorized();
+        }
+
         const text = (await response.text()) || response.statusText;
         throw new Error(`${response.status}: ${text}`);
     }
