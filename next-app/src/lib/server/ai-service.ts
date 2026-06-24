@@ -105,14 +105,16 @@ Para exercícios JavaScript:
 - Verifique se a lógica está correta
 - Verifique se produz o resultado esperado
 
-Feedback em português:
-- Se correto (100): parabenize e confirme que está perfeito
-- Se incorreto: explique o que falta sem dar a resposta
+Feedback em português, sempre curto e direto:
+- "feedback": no máximo 2 frases (até 200 caracteres). Vá direto ao ponto.
+- "suggestions": no máximo 3 itens curtos (cada um com até 100 caracteres)
+- Se correto (100): parabenize brevemente
+- Se incorreto: diga o principal problema sem dar a resposta completa
 
 Retorne APENAS um JSON no formato:
 {
-  "feedback": "string com feedback principal",
-  "suggestions": ["array", "de", "sugestões"],
+  "feedback": "string com feedback principal curto",
+  "suggestions": ["array", "de", "sugestões curtas"],
   "isCorrect": boolean (true APENAS se score = 100),
   "score": número de 0 a 100
 }`,
@@ -137,7 +139,7 @@ Analise se este código resolve o exercício corretamente.`,
             messages,
             response_format: { type: "json_object" },
             temperature: 0.3,
-            max_tokens: 500,
+            max_tokens: 280,
         });
 
         const result = response.choices[0].message.content;
@@ -145,7 +147,28 @@ Analise se este código resolve o exercício corretamente.`,
             throw new Error("Resposta vazia da OpenAI");
         }
 
-        return JSON.parse(result) as CodeReviewResult;
+        const parsed = JSON.parse(result) as CodeReviewResult;
+        const suggestions = Array.isArray(parsed.suggestions)
+            ? parsed.suggestions
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((item) => (item.length > 100 ? `${item.slice(0, 100).trimEnd()}...` : item))
+            : [];
+
+        const feedback = typeof parsed.feedback === "string"
+            ? parsed.feedback.trim()
+            : "";
+        const trimmedFeedback = feedback.length > 220
+            ? `${feedback.slice(0, 220).trimEnd()}...`
+            : feedback;
+
+        return {
+            ...parsed,
+            feedback: trimmedFeedback,
+            suggestions,
+        };
     } catch (error) {
         console.error("Erro na revisão de código OpenAI:", error);
         return {

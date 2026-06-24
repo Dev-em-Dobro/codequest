@@ -13,6 +13,7 @@ import {
     Play,
     Sparkles,
     Trophy,
+    X,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { CodeEditor } from "@/components/code-editor";
@@ -56,8 +57,34 @@ type AiReviewResponse = {
 
 type StatusMessage = {
     tone: "info" | "success" | "error";
+    title?: string;
     text: string;
+    suggestions?: string[];
 };
+
+const MAX_FEEDBACK_LENGTH = 220;
+const MAX_SUGGESTIONS = 3;
+
+function truncateText(text: string, maxLength = MAX_FEEDBACK_LENGTH): string {
+    const normalized = text.trim();
+    if (normalized.length <= maxLength) {
+        return normalized;
+    }
+
+    return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+function normalizeSuggestions(suggestions: string[] | undefined): string[] {
+    if (!suggestions?.length) {
+        return [];
+    }
+
+    return suggestions
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, MAX_SUGGESTIONS)
+        .map((item) => truncateText(item, 120));
+}
 
 function normalizeCode(code: Partial<CodeTriplet> | undefined): CodeTriplet {
     return {
@@ -89,6 +116,58 @@ function statusClass(tone: StatusMessage["tone"]): string {
     }
 
     return "border-sky-300/80 bg-sky-950 text-sky-50";
+}
+
+function FeedbackPanel({
+    message,
+    onClose,
+}: {
+    message: StatusMessage;
+    onClose: () => void;
+}) {
+    const titleId = "exercise-feedback-title";
+
+    return (
+        <div
+            className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={message.title ? titleId : undefined}
+        >
+            <div className={`relative w-full max-w-md max-h-full overflow-y-auto rounded-lg border px-4 py-4 text-sm shadow-2xl ${statusClass(message.tone)}`}>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="absolute right-2 top-2 rounded p-1 text-current/70 transition-colors hover:bg-black/10 hover:text-current"
+                    aria-label="Fechar mensagem"
+                >
+                    <X className="h-4 w-4" />
+                </button>
+
+                <div className="pr-7">
+                    {message.title ? (
+                        <p id={titleId} className="mb-2 text-base font-semibold">{message.title}</p>
+                    ) : null}
+                    <p className="leading-relaxed">{message.text}</p>
+                    {message.suggestions && message.suggestions.length > 0 ? (
+                        <ul className="mt-3 list-disc space-y-1.5 pl-4 text-current/90">
+                            {message.suggestions.map((suggestion) => (
+                                <li key={suggestion}>{suggestion}</li>
+                            ))}
+                        </ul>
+                    ) : null}
+                </div>
+
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="rpg-button mt-4 w-full px-4 py-2 text-sm"
+                >
+                    Fechar
+                </button>
+            </div>
+        </div>
+    );
 }
 
 function formatDifficulty(difficulty: Exercise["difficulty"]): string {
@@ -132,20 +211,6 @@ export default function ExerciseDetailPage() {
         const redirectPath = `/exercise/${exerciseId}`;
         router.replace(`/auth/signin?redirect=${encodeURIComponent(redirectPath)}`);
     }, [authLoading, isAuthenticated, exerciseId, router]);
-
-    useEffect(() => {
-        if (!statusMessage) {
-            return;
-        }
-
-        const timer = globalThis.setTimeout(() => {
-            setStatusMessage(null);
-        }, 10000);
-
-        return () => {
-            globalThis.clearTimeout(timer);
-        };
-    }, [statusMessage]);
 
     const exerciseQuery = useQuery({
         queryKey: ["/api/exercises", exerciseId],
@@ -353,13 +418,11 @@ export default function ExerciseDetailPage() {
             const isReviewApproved = Boolean(review.isCorrect) && reviewScore >= 100;
 
             if (!isReviewApproved) {
-                const suggestionsText = review.suggestions && review.suggestions.length > 0
-                    ? ` Sugestoes: ${review.suggestions.join(" | ")}`
-                    : "";
-
                 setStatusMessage({
                     tone: "error",
-                    text: `${review.feedback} (${Math.round(reviewScore)}%)${suggestionsText}`,
+                    title: `Pontuacao: ${Math.round(reviewScore)}%`,
+                    text: truncateText(review.feedback),
+                    suggestions: normalizeSuggestions(review.suggestions),
                 });
                 return;
             }
@@ -379,7 +442,7 @@ export default function ExerciseDetailPage() {
 
             setStatusMessage({
                 tone: "success",
-                text: `Codigo correto! Este exercicio ja foi concluido anteriormente. ${review.feedback}`,
+                text: "Codigo correto! Este exercicio ja foi concluido anteriormente.",
             });
         } catch (error) {
             setStatusMessage({
@@ -676,7 +739,7 @@ export default function ExerciseDetailPage() {
                                 </div>
                             </div>
 
-                            <div className="mt-3 overflow-hidden rounded-md border border-zinc-700 bg-[#f3f4f6]">
+                            <div className="relative mt-3 overflow-hidden rounded-md border border-zinc-700 bg-[#f3f4f6]">
                                 {hasPreviewOutput ? (
                                     <iframe
                                         key={isJavaScriptExercise ? `${exerciseId}-${previewRunCount}` : undefined}
@@ -691,24 +754,18 @@ export default function ExerciseDetailPage() {
                                         <p>Comece a escrever codigo para ver o resultado aqui.</p>
                                     </div>
                                 )}
-                            </div>
 
+                                {statusMessage ? (
+                                    <FeedbackPanel
+                                        message={statusMessage}
+                                        onClose={() => setStatusMessage(null)}
+                                    />
+                                ) : null}
+                            </div>
                         </div>
                     </section>
                 </main>
             </div>
-
-            {statusMessage ? (
-                <div className="pointer-events-none fixed bottom-6 right-6 z-50 w-[calc(100%-2rem)] max-w-md animate-in slide-in-from-bottom-4 fade-in-0 duration-300">
-                    <p
-                        role="status"
-                        aria-live="polite"
-                        className={`pointer-events-auto max-h-[40vh] overflow-y-auto rounded-md border px-3 py-2 text-sm leading-relaxed shadow-2xl ${statusClass(statusMessage.tone)}`}
-                    >
-                        {statusMessage.text}
-                    </p>
-                </div>
-            ) : null}
         </div>
     );
 }
