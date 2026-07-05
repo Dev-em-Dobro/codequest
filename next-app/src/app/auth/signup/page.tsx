@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Lock, MessageCircle } from "lucide-react";
 import { Header } from "@/components/layout/header";
+import { FieldError } from "@/components/auth/form-feedback";
+import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { useAuth } from "@/hooks/use-auth";
+import { signUpEmailSchema, signUpSchema, type SignUpInput } from "@/lib/validations/auth";
 
 type ValidateEmailResponse = {
     isValid?: boolean;
@@ -18,15 +23,28 @@ export default function SignUpPage() {
     const router = useRouter();
     const { signUp, isAuthenticated, isLoading: authLoading } = useAuth();
 
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isValidatingEmail, setIsValidatingEmail] = useState(false);
     const [emailValidated, setEmailValidated] = useState(false);
     const [showRegistrationFields, setShowRegistrationFields] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [requestError, setRequestError] = useState<string | null>(null);
+
+    const {
+        register,
+        handleSubmit,
+        formState: { errors, isSubmitting },
+        getValues,
+        setError: setFieldError,
+        clearErrors,
+        reset,
+    } = useForm<SignUpInput>({
+        resolver: zodResolver(signUpSchema),
+        defaultValues: {
+            name: "",
+            email: "",
+            password: "",
+            confirmPassword: "",
+        },
+    });
 
     useEffect(() => {
         if (!authLoading && isAuthenticated) {
@@ -34,13 +52,8 @@ export default function SignUpPage() {
         }
     }, [authLoading, isAuthenticated, router]);
 
-    const validateEmail = async (): Promise<boolean> => {
-        if (!email.trim()) {
-            setError("Por favor, digite seu email do DevQuest");
-            return false;
-        }
-
-        setError(null);
+    const validateEmail = async (email: string): Promise<boolean> => {
+        setRequestError(null);
         setIsValidatingEmail(true);
 
         try {
@@ -49,13 +62,13 @@ export default function SignUpPage() {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ email: email.trim() }),
+                body: JSON.stringify({ email }),
             });
 
             const result = (await response.json()) as ValidateEmailResponse;
 
             if (result.userExists) {
-                setError(result.message || "Este email já possui uma conta. Faça login para continuar.");
+                setRequestError(result.message || "Este email já possui uma conta. Faça login para continuar.");
                 setEmailValidated(false);
                 setShowRegistrationFields(false);
                 return false;
@@ -64,66 +77,76 @@ export default function SignUpPage() {
             if (result.isValid) {
                 setEmailValidated(true);
                 setShowRegistrationFields(true);
-                setError(null);
+                setRequestError(null);
                 return true;
             }
 
             setEmailValidated(false);
             setShowRegistrationFields(false);
-            setError(result.message || "Este email não está cadastrado no DevQuest.");
+            setRequestError(result.message || "Este email não está cadastrado no DevQuest.");
             return false;
         } catch {
-            setError("Erro ao validar email. Tente novamente.");
+            setRequestError("Erro ao validar email. Tente novamente.");
             return false;
         } finally {
             setIsValidatingEmail(false);
         }
     };
 
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-
-        if (!emailValidated) {
-            await validateEmail();
-            return;
-        }
-
-        if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-            setError("Por favor, preencha todos os campos");
-            return;
-        }
-
-        if (password.length < 8) {
-            setError("A senha deve ter pelo menos 8 caracteres.");
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            setError("As senhas não coincidem");
-            return;
-        }
-
-        setError(null);
-        setIsSubmitting(true);
+    const submitSignUp = handleSubmit(async (values) => {
+        setRequestError(null);
 
         try {
             await signUp({
-                name: name.trim(),
-                email: email.trim(),
-                password,
+                name: values.name,
+                email: values.email,
+                password: values.password,
             });
 
             router.replace("/");
         } catch (submitError) {
             const message = submitError instanceof Error ? submitError.message : "Erro ao criar conta. Tente novamente.";
-            setError(message);
-        } finally {
-            setIsSubmitting(false);
+            setRequestError(message);
+        }
+    });
+
+    const onSubmit = async () => {
+        if (!emailValidated) {
+            const emailResult = signUpEmailSchema.safeParse({ email: getValues("email") });
+
+            if (!emailResult.success) {
+                const issue = emailResult.error.issues[0];
+                setFieldError("email", { message: issue?.message ?? "Digite um e-mail válido" });
+                return;
+            }
+
+            clearErrors("email");
+            const valid = await validateEmail(emailResult.data.email);
+            if (valid) {
+                reset({
+                    name: "",
+                    email: emailResult.data.email,
+                    password: "",
+                    confirmPassword: "",
+                });
+            }
+            return;
+        }
+
+        await submitSignUp();
+    };
+
+    const handleEmailChange = () => {
+        if (emailValidated || showRegistrationFields) {
+            setEmailValidated(false);
+            setShowRegistrationFields(false);
+            setRequestError(null);
         }
     };
 
-    const showWhatsAppSupport = Boolean(error && (error.includes("não está cadastrado") || error.includes("nao esta cadastrado")));
-    const showLoginShortcut = Boolean(error && (error.includes("já possui uma conta") || error.includes("ja possui uma conta")));
+    const showWhatsAppSupport = Boolean(requestError && (requestError.includes("não está cadastrado") || requestError.includes("nao esta cadastrado")));
+    const showLoginShortcut = Boolean(requestError && (requestError.includes("já possui uma conta") || requestError.includes("ja possui uma conta")));
+    const busy = isSubmitting || isValidatingEmail;
 
     return (
         <div className="min-h-screen bg-black">
@@ -139,7 +162,7 @@ export default function SignUpPage() {
                         </p>
                     </div>
 
-                    {error ? (
+                    {requestError ? (
                         <div
                             className="mt-5 rounded-md border p-3 text-sm"
                             style={{
@@ -149,7 +172,7 @@ export default function SignUpPage() {
                                 fontWeight: showWhatsAppSupport || showLoginShortcut ? 500 : 400,
                             }}
                         >
-                            {error}
+                            {requestError}
                         </div>
                     ) : null}
 
@@ -177,23 +200,19 @@ export default function SignUpPage() {
                         </button>
                     ) : null}
 
-                    <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+                    <AuthFormShell onSubmit={onSubmit} className="mt-5 space-y-4">
                         <div className="space-y-2">
                             <div className="relative">
                                 <input
                                     id="email"
                                     type="email"
+                                    autoComplete="email"
                                     placeholder="Qual seu email do DevQuest?"
-                                    value={email}
-                                    onChange={(event) => {
-                                        setEmail(event.target.value);
-                                        setEmailValidated(false);
-                                        setShowRegistrationFields(false);
-                                        setError(null);
-                                    }}
                                     className="input-8bit w-full"
-                                    disabled={isSubmitting || isValidatingEmail}
-                                    required
+                                    disabled={busy}
+                                    {...register("email", {
+                                        onChange: handleEmailChange,
+                                    })}
                                 />
                                 {isValidatingEmail ? (
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -201,63 +220,62 @@ export default function SignUpPage() {
                                     </div>
                                 ) : null}
                             </div>
+                            <FieldError message={errors.email?.message} />
                         </div>
 
                         {emailValidated && showRegistrationFields ? (
                             <>
                                 <div className="space-y-2">
-                                    <div className="relative">
-                                        <input
-                                            id="name"
-                                            type="text"
-                                            placeholder="Seu nome completo"
-                                            value={name}
-                                            onChange={(event) => setName(event.target.value)}
-                                            className="input-8bit w-full"
-                                            disabled={isSubmitting}
-                                            required
-                                        />
-                                    </div>
+                                    <input
+                                        id="name"
+                                        type="text"
+                                        autoComplete="name"
+                                        placeholder="Seu nome completo"
+                                        className="input-8bit w-full"
+                                        disabled={isSubmitting}
+                                        {...register("name")}
+                                    />
+                                    <FieldError message={errors.name?.message} />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <div className="relative">
-                                        <input
-                                            id="password"
-                                            type="password"
-                                            placeholder="Crie uma senha (mínimo 8 caracteres)"
-                                            value={password}
-                                            onChange={(event) => setPassword(event.target.value)}
-                                            className="input-8bit w-full"
-                                            disabled={isSubmitting}
-                                            required
-                                            minLength={8}
-                                        />
-                                    </div>
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        placeholder="Crie uma senha (mínimo 8 caracteres)"
+                                        className="input-8bit w-full"
+                                        disabled={isSubmitting}
+                                        {...register("password")}
+                                    />
+                                    <FieldError message={errors.password?.message} />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <div className="relative">
-                                        <input
-                                            id="confirmPassword"
-                                            type="password"
-                                            placeholder="Confirme sua senha"
-                                            value={confirmPassword}
-                                            onChange={(event) => setConfirmPassword(event.target.value)}
-                                            className="input-8bit w-full"
-                                            disabled={isSubmitting}
-                                            required
-                                        />
-                                    </div>
+                                    <input
+                                        id="confirmPassword"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        placeholder="Confirme sua senha"
+                                        className="input-8bit w-full"
+                                        disabled={isSubmitting}
+                                        {...register("confirmPassword")}
+                                    />
+                                    <FieldError message={errors.confirmPassword?.message} />
                                 </div>
                             </>
                         ) : null}
 
-                        <button type="submit" className="w-full rpg-button" disabled={isSubmitting || isValidatingEmail}>
+                        <button type="button" onClick={() => void onSubmit()} className="w-full rpg-button" disabled={busy}>
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
                                     Criando conta...
+                                </>
+                            ) : isValidatingEmail ? (
+                                <>
+                                    <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                                    Validando email...
                                 </>
                             ) : !emailValidated ? (
                                 "Validar Email"
@@ -265,7 +283,7 @@ export default function SignUpPage() {
                                 "Criar Conta"
                             )}
                         </button>
-                    </form>
+                    </AuthFormShell>
 
                     <div className="mt-5 text-center text-sm">
                         <span style={{ color: "#fff6e9", opacity: 0.8 }}>Já tem uma conta? </span>

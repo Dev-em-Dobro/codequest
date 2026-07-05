@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 
 export const SESSION_COOKIE_NAME = "codequest_session_id";
 
+/** Sessão expira após 7 dias (cookie httpOnly). */
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+
 function parseSessionIdFromCookie(cookieHeader: string | null): string | null {
     if (!cookieHeader) {
         return null;
@@ -39,7 +42,7 @@ export function setSessionCookie(response: NextResponse, sessionId: string) {
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
         path: "/",
-        maxAge: 60 * 60 * 24 * 30,
+        maxAge: SESSION_MAX_AGE_SECONDS,
     });
 }
 

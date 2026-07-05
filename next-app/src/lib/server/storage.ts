@@ -1,5 +1,6 @@
 import postgres from "postgres";
 import { randomBytes, randomUUID } from "node:crypto";
+import { hashPasswordResetToken, isPasswordResetExpired } from "./password";
 import type {
     Exercise,
     InsertExercise,
@@ -22,8 +23,13 @@ export interface IStorage {
     getUser(id: string): Promise<User | undefined>;
     getAllUsers(): Promise<User[]>;
     getUserByEmail(email: string): Promise<User | undefined>;
-    createUser(user: InsertUser & { id?: string }): Promise<User>;
+    createUser(user: InsertUser & { id?: string; passwordHash?: string }): Promise<User>;
     updateUser(id: string, data: Partial<User>): Promise<User>;
+    getUserPasswordHash(userId: string): Promise<string | null>;
+    setUserPasswordHash(userId: string, passwordHash: string): Promise<void>;
+    setPasswordResetToken(userId: string, tokenHash: string, expiresAt: string): Promise<void>;
+    findUserByPasswordResetToken(token: string): Promise<User | undefined>;
+    clearPasswordResetToken(userId: string): Promise<void>;
     updateCode(userId: string, data: UpdateCode): Promise<UserProgress>;
     createFeedback(data: {
         feedback: string;
@@ -246,7 +252,111 @@ export class NeonJsonStorage implements IStorage {
         return mapUser(rows[0]);
     }
 
-    async createUser(user: InsertUser & { id?: string }): Promise<User> {
+    async getUserPasswordHash(userId: string): Promise<string | null> {
+        ensureDatabaseConfigured();
+        const existing = await this.getUser(userId);
+        if (!existing) {
+            return null;
+        }
+
+        const rowId = `users/${existing.id}`;
+        const currentRows = await sql<DbRow[]>`SELECT id, parent_id, data FROM users WHERE id = ${rowId} LIMIT 1`;
+        const currentData = normalizeJsonData(currentRows[0]?.data);
+        const hash = currentData.passwordHash;
+
+        return typeof hash === "string" && hash.length > 0 ? hash : null;
+    }
+
+    async setUserPasswordHash(userId: string, passwordHash: string): Promise<void> {
+        ensureDatabaseConfigured();
+        const existing = await this.getUser(userId);
+        if (!existing) {
+            throw new Error("User not found");
+        }
+
+        const rowId = `users/${existing.id}`;
+        const currentRows = await sql<DbRow[]>`SELECT id, parent_id, data FROM users WHERE id = ${rowId} LIMIT 1`;
+        const currentData = normalizeJsonData(currentRows[0]?.data);
+        const merged: JsonObject = {
+            ...currentData,
+            passwordHash,
+        };
+
+        await sql`
+      UPDATE users
+      SET data = ${asJson(merged)}
+      WHERE id = ${rowId}
+    `;
+    }
+
+    async setPasswordResetToken(userId: string, tokenHash: string, expiresAt: string): Promise<void> {
+        ensureDatabaseConfigured();
+        const existing = await this.getUser(userId);
+        if (!existing) {
+            throw new Error("User not found");
+        }
+
+        const rowId = `users/${existing.id}`;
+        const currentRows = await sql<DbRow[]>`SELECT id, parent_id, data FROM users WHERE id = ${rowId} LIMIT 1`;
+        const currentData = normalizeJsonData(currentRows[0]?.data);
+        const merged: JsonObject = {
+            ...currentData,
+            passwordResetTokenHash: tokenHash,
+            passwordResetExpires: expiresAt,
+        };
+
+        await sql`
+      UPDATE users
+      SET data = ${asJson(merged)}
+      WHERE id = ${rowId}
+    `;
+    }
+
+    async findUserByPasswordResetToken(token: string): Promise<User | undefined> {
+        ensureDatabaseConfigured();
+        const tokenHash = hashPasswordResetToken(token);
+
+        const rows = await sql<DbRow[]>`
+      SELECT id, parent_id, data
+      FROM users
+      WHERE data->>'passwordResetTokenHash' = ${tokenHash}
+      LIMIT 1
+    `;
+
+        if (!rows[0]) {
+            return undefined;
+        }
+
+        const data = normalizeJsonData(rows[0].data);
+        if (isPasswordResetExpired(typeof data.passwordResetExpires === "string" ? data.passwordResetExpires : undefined)) {
+            return undefined;
+        }
+
+        return mapUser(rows[0]);
+    }
+
+    async clearPasswordResetToken(userId: string): Promise<void> {
+        ensureDatabaseConfigured();
+        const existing = await this.getUser(userId);
+        if (!existing) {
+            return;
+        }
+
+        const rowId = `users/${existing.id}`;
+        const currentRows = await sql<DbRow[]>`SELECT id, parent_id, data FROM users WHERE id = ${rowId} LIMIT 1`;
+        const currentData = normalizeJsonData(currentRows[0]?.data);
+        const merged: JsonObject = { ...currentData };
+        delete merged.passwordResetTokenHash;
+        delete merged.passwordResetExpires;
+
+        await sql`
+      UPDATE users
+      SET data = ${asJson(merged)}
+      WHERE id = ${rowId}
+    `;
+    }
+
+    async createUser(user: InsertUser & { id?: string; passwordHash?: string }): Promise<User> {
         ensureDatabaseConfigured();
         const bareId = this.normalizeUserId(user.id ?? makeId(28));
         const rowId = `users/${bareId}`;
@@ -262,6 +372,10 @@ export class NeonJsonStorage implements IStorage {
             totalPoints: points,
             completedExercises,
         };
+
+        if (user.passwordHash) {
+            payload.passwordHash = user.passwordHash;
+        }
 
         const rows = await sql<DbRow[]>`
       INSERT INTO users (id, parent_id, data)

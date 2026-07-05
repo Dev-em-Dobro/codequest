@@ -2,20 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { GraduationCap, Loader2 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { GlowCard } from "@/components/ui/spotlight-card";
+import { FieldError } from "@/components/auth/form-feedback";
+import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { useAuth } from "@/hooks/use-auth";
+import { signInSchema, type SignInInput } from "@/lib/validations/auth";
 
 export default function SignInPage() {
     const router = useRouter();
     const { signIn, isAuthenticated, isLoading: authLoading } = useAuth();
-
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const redirectPath = useMemo(() => {
         if (globalThis.window === undefined) {
@@ -30,27 +31,31 @@ export default function SignInPage() {
         return requestedPath;
     }, []);
 
+    const {
+        register,
+        handleSubmit,
+        formState: { errors, isSubmitting },
+    } = useForm<SignInInput>({
+        resolver: zodResolver(signInSchema),
+        defaultValues: {
+            email: "",
+            password: "",
+        },
+    });
+
     useEffect(() => {
         if (!authLoading && isAuthenticated) {
             router.replace(redirectPath);
         }
     }, [authLoading, isAuthenticated, redirectPath, router]);
 
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-
-        if (!email || !password) {
-            setError("Por favor, preencha todos os campos");
-            return;
-        }
-
+    const onSubmit = handleSubmit(async (values) => {
         setError(null);
-        setIsSubmitting(true);
 
         try {
             await signIn({
-                email: email.trim(),
-                password,
+                email: values.email,
+                password: values.password,
             });
 
             router.replace(redirectPath);
@@ -76,14 +81,16 @@ export default function SignInPage() {
             }
 
             setError(errorMessage);
-        } finally {
-            setIsSubmitting(false);
         }
-    };
+    });
 
     const handleFirstAccess = () => {
         router.push("/auth/signup");
     };
+
+    const isCredentialError =
+        Boolean(error) &&
+        (error?.includes("Email ou senha incorretos") || error?.includes("Email ou senha inválidos"));
 
     return (
         <div className="min-h-screen bg-black">
@@ -128,49 +135,46 @@ export default function SignInPage() {
                             <div
                                 className="rounded-md border p-3 text-sm"
                                 style={{
-                                    backgroundColor: error.includes("Email ou senha incorretos") ? "#ffffff" : "rgba(127,29,29,0.38)",
-                                    borderColor: error.includes("Email ou senha incorretos") ? "#ef4444" : "rgba(239,68,68,0.45)",
-                                    color: error.includes("Email ou senha incorretos") ? "#ef4444" : "#fecaca",
-                                    fontWeight: error.includes("Email ou senha incorretos") ? 500 : 400,
+                                    backgroundColor: isCredentialError ? "#ffffff" : "rgba(127,29,29,0.38)",
+                                    borderColor: isCredentialError ? "#ef4444" : "rgba(239,68,68,0.45)",
+                                    color: isCredentialError ? "#ef4444" : "#fecaca",
+                                    fontWeight: isCredentialError ? 500 : 400,
                                 }}
                             >
                                 {error}
                             </div>
                         ) : null}
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <AuthFormShell onSubmit={onSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <div className="relative">
-                                    <input
-                                        id="email"
-                                        type="email"
-                                        placeholder="Digite seu email"
-                                        value={email}
-                                        onChange={(event) => setEmail(event.target.value)}
-                                        className="input-8bit w-full"
-                                        disabled={isSubmitting}
-                                        required
-                                    />
-                                </div>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    autoComplete="email"
+                                    placeholder="Digite seu email"
+                                    className="input-8bit w-full"
+                                    disabled={isSubmitting}
+                                    {...register("email")}
+                                />
+                                <FieldError message={errors.email?.message} />
                             </div>
 
                             <div className="space-y-2">
-                                <div className="relative">
-                                    <input
-                                        id="password"
-                                        type="password"
-                                        placeholder="Digite sua senha"
-                                        value={password}
-                                        onChange={(event) => setPassword(event.target.value)}
-                                        className="input-8bit w-full"
-                                        disabled={isSubmitting}
-                                        required
-                                    />
-                                </div>
+                                <input
+                                    id="password"
+                                    type="password"
+                                    autoComplete="current-password"
+                                    placeholder="Digite sua senha"
+                                    className="input-8bit w-full"
+                                    disabled={isSubmitting}
+                                    {...register("password")}
+                                />
+                                <FieldError message={errors.password?.message} />
                             </div>
 
                             <button
-                                type="submit"
+                                type="button"
+                                onClick={() => void onSubmit()}
                                 className="inline-flex h-10 w-full items-center justify-center px-4 py-2 text-sm rpg-button"
                                 disabled={isSubmitting}
                             >
@@ -183,7 +187,7 @@ export default function SignInPage() {
                                     "Entrar"
                                 )}
                             </button>
-                        </form>
+                        </AuthFormShell>
 
                         <div className="text-center">
                             <Link href="/auth/forgot-password" className="text-sm font-medium hover:underline" style={{ color: "#9d4edd" }}>

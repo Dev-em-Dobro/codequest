@@ -57,6 +57,18 @@ export async function POST(request: Request) {
 
         const existingUser = await storage.getUserByEmail(email);
         if (existingUser) {
+            const passwordHash = await storage.getUserPasswordHash(existingUser.id);
+
+            if (!passwordHash) {
+                return NextResponse.json({
+                    isValid: false,
+                    userExists: true,
+                    needsPasswordReset: true,
+                    message:
+                        "Este email já possui conta, mas ainda sem senha definida. Use 'Esqueci minha senha' para criar uma.",
+                });
+            }
+
             return NextResponse.json({
                 isValid: false,
                 userExists: true,
@@ -69,7 +81,7 @@ export async function POST(request: Request) {
             userExists: false,
             message: "Email válido! Complete o cadastro com nome e senha.",
         });
-    } catch {
-        return internalError();
+    } catch (error) {
+        return internalError(error, { route: "auth-validate-email" });
     }
 }

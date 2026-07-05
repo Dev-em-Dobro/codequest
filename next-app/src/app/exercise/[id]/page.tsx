@@ -745,7 +745,7 @@ export default function ExerciseDetailPage() {
                                         key={isJavaScriptExercise ? `${exerciseId}-${previewRunCount}` : undefined}
                                         title="Preview do exercicio"
                                         srcDoc={previewDocument}
-                                        sandbox="allow-scripts"
+                                        sandbox="allow-scripts allow-forms"
                                         className="h-[420px] w-full bg-white"
                                     />
                                 ) : (

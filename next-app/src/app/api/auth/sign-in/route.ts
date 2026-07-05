@@ -4,6 +4,7 @@ import { parseJsonBody, internalError } from "@/lib/server/http";
 import { setSessionCookie } from "@/lib/server/auth";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import { toPublicUser } from "@/lib/server/user-contract";
+import { verifyPassword } from "@/lib/server/password";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Email ou senha inválidos" }, { status: 401 });
     }
 
+    const passwordHash = await storage.getUserPasswordHash(user.id);
+    if (!passwordHash) {
+      return NextResponse.json(
+        {
+          message:
+            "Sua conta ainda não tem senha definida. Use 'Esqueci minha senha' para criar uma e acessar o CodeQuest.",
+          code: "NEEDS_PASSWORD_RESET",
+        },
+        { status: 403 },
+      );
+    }
+
+    if (!(await verifyPassword(password, passwordHash))) {
+      return NextResponse.json({ message: "Email ou senha inválidos" }, { status: 401 });
+    }
+
     const publicUser = toPublicUser(user);
 
     const response = NextResponse.json({
@@ -51,7 +68,7 @@ export async function POST(request: Request) {
 
     setSessionCookie(response, user.id);
     return response;
-  } catch {
-    return internalError();
+  } catch (error) {
+    return internalError(error, { route: "auth-sign-in" });
   }
 }

@@ -364,7 +364,7 @@ export default function SimpleExercisePage() {
                                     key={previewKey}
                                     title="Preview do exercício"
                                     srcDoc={previewDocument}
-                                    sandbox="allow-scripts"
+                                    sandbox="allow-scripts allow-forms"
                                     className="w-full h-full"
                                 />
                             </div>

@@ -3,14 +3,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ChevronRight, Crown, LogOut, Medal, Settings, Shield, Star, Trophy } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { GlowCard } from "@/components/ui/spotlight-card";
+import { FieldError } from "@/components/auth/form-feedback";
+import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import type { AuthUser } from "@/lib/auth-client";
+import { profileUpdateSchema, type ProfileUpdateInput } from "@/lib/validations/auth";
 
 type UpdateUserResponse = {
     success: boolean;
@@ -179,15 +184,30 @@ function getAvatarSource(avatar: string | undefined): string {
 }
 
 function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileContentProps>) {
-    const [name, setName] = useState(user.name || "");
-    const [description, setDescription] = useState(user.description || "");
     const [selectedAvatar, setSelectedAvatar] = useState(getAvatarSource(user.avatar));
-    const [github, setGithub] = useState(user.github || "");
-    const [linkedin, setLinkedin] = useState(user.linkedin || "");
     const [showAvatarSelector, setShowAvatarSelector] = useState(false);
-    const [isUpdating, setIsUpdating] = useState(false);
     const [updateMessage, setUpdateMessage] = useState<string | null>(null);
     const [updateError, setUpdateError] = useState<string | null>(null);
+
+    const {
+        register,
+        handleSubmit,
+        formState: { errors, isSubmitting },
+        watch,
+    } = useForm<ProfileUpdateInput>({
+        resolver: zodResolver(profileUpdateSchema),
+        defaultValues: {
+            name: user.name || "",
+            description: user.description || "",
+            github: user.github || "",
+            linkedin: user.linkedin || "",
+        },
+    });
+
+    const name = watch("name");
+    const description = watch("description");
+    const github = watch("github");
+    const linkedin = watch("linkedin");
 
     const exercisesQuery = useQuery({
         queryKey: ["/api/exercises"],
@@ -215,15 +235,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
     const rankPercentage = Math.round(getUserPercentage(userPoints, totalAvailablePoints));
     const userRank = getUserRank(rankPercentage);
 
-    const handleSave = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-
-        if (!name.trim()) {
-            setUpdateError("Informe seu nome antes de salvar.");
-            return;
-        }
-
-        setIsUpdating(true);
+    const onSave = handleSubmit(async (values) => {
         setUpdateMessage(null);
         setUpdateError(null);
 
@@ -233,11 +245,11 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
             const result = await apiClient<UpdateUserResponse>("/auth/update-user", {
                 method: "POST",
                 body: {
-                    name: name.trim(),
-                    description: description.trim(),
+                    name: values.name,
+                    description: values.description?.trim() ?? "",
                     avatar: avatarFile,
-                    github: github.trim(),
-                    linkedin: linkedin.trim(),
+                    github: values.github?.trim() ?? "",
+                    linkedin: values.linkedin?.trim() ?? "",
                 },
             });
 
@@ -247,17 +259,17 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
 
             const nextUser: AuthUser = {
                 id: result.user.id,
-                name: result.user.name || name.trim(),
+                name: result.user.name || values.name,
                 email: result.user.email || user.email,
                 points: Number(result.user.points ?? user.points),
                 level: Number(
                     result.user.level ??
                     getLegacyUserLevel(Number(result.user.points ?? user.points), totalAvailablePoints),
                 ),
-                description: result.user.description || description,
+                description: result.user.description || values.description,
                 avatar: result.user.avatar || avatarFile,
-                github: result.user.github || github,
-                linkedin: result.user.linkedin || linkedin,
+                github: result.user.github || values.github,
+                linkedin: result.user.linkedin || values.linkedin,
             };
 
             updateAuthUser(nextUser);
@@ -265,10 +277,8 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
         } catch (saveError) {
             const message = saveError instanceof Error ? saveError.message : "Falha ao atualizar perfil";
             setUpdateError(message);
-        } finally {
-            setIsUpdating(false);
         }
-    };
+    });
 
     return (
         <div className="min-h-screen bg-black">
@@ -296,7 +306,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                         <div className="p-6">
                             <h1 className="text-2xl font-bold text-white mb-6">Dados do Usuário</h1>
 
-                            <form className="space-y-6" onSubmit={handleSave}>
+                            <AuthFormShell onSubmit={onSave} className="space-y-6">
                                 <div className="space-y-2">
                                     <label className="text-white font-bold text-sm" htmlFor="profile-name">
                                         Nome
@@ -304,13 +314,12 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                     <input
                                         id="profile-name"
                                         type="text"
-                                        value={name}
-                                        onChange={(event) => setName(event.target.value)}
-                                        disabled={isUpdating}
-                                        required
+                                        disabled={isSubmitting}
                                         className="input-8bit w-full"
                                         placeholder="Digite seu nome..."
+                                        {...register("name")}
                                     />
+                                    <FieldError message={errors.name?.message} />
                                 </div>
 
                                 <div className="space-y-2">
@@ -341,13 +350,13 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                     </label>
                                     <textarea
                                         id="profile-description"
-                                        value={description}
-                                        onChange={(event) => setDescription(event.target.value)}
-                                        disabled={isUpdating}
+                                        disabled={isSubmitting}
                                         className="input-8bit w-full resize-none"
                                         rows={4}
                                         placeholder="Descreva seu personagem..."
+                                        {...register("description")}
                                     />
+                                    <FieldError message={errors.description?.message} />
                                 </div>
 
                                 <div className="space-y-2">
@@ -357,11 +366,12 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                     <input
                                         id="profile-github"
                                         type="text"
-                                        value={github}
-                                        onChange={(event) => setGithub(event.target.value)}
+                                        disabled={isSubmitting}
                                         className="input-8bit w-full"
                                         placeholder="usuario ou https://github.com/usuario"
+                                        {...register("github")}
                                     />
+                                    <FieldError message={errors.github?.message} />
                                 </div>
 
                                 <div className="space-y-2">
@@ -371,11 +381,12 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                     <input
                                         id="profile-linkedin"
                                         type="url"
-                                        value={linkedin}
-                                        onChange={(event) => setLinkedin(event.target.value)}
+                                        disabled={isSubmitting}
                                         className="input-8bit w-full"
                                         placeholder="https://linkedin.com/in/seu-perfil"
+                                        {...register("linkedin")}
                                     />
+                                    <FieldError message={errors.linkedin?.message} />
                                 </div>
 
                                 {updateError ? (
@@ -392,12 +403,15 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
 
                                 <div className="space-y-3">
                                     <button
-                                        type="submit"
-                                        onClick={() => setUpdateMessage(null)}
-                                        disabled={isUpdating}
+                                        type="button"
+                                        onClick={() => {
+                                            setUpdateMessage(null);
+                                            void onSave();
+                                        }}
+                                        disabled={isSubmitting}
                                         className="rpg-button w-full flex items-center justify-center"
                                     >
-                                        {isUpdating ? (
+                                        {isSubmitting ? (
                                             <>
                                                 <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                                 Salvando...
@@ -421,7 +435,7 @@ function ProfileContent({ user, onSignOut, updateAuthUser }: Readonly<ProfileCon
                                         Sair da Conta
                                     </button>
                                 </div>
-                            </form>
+                            </AuthFormShell>
                         </div>
                     </GlowCard>
 
