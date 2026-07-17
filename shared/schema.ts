@@ -20,7 +20,7 @@ export const exercises = pgTable("exercises", {
   }),
   solutionCode: jsonb("solution_code").$type<{ html: string; css: string; javascript: string }>().notNull(),
   hints: jsonb("hints").$type<string[]>().notNull().default([]),
-  validationRules: jsonb("validation_rules").$type<{ type: string; rule: string; message: string }[]>().notNull().default([]),
+  validationRules: jsonb("validation_rules").$type<{ type: string; rule: string; message: string; count?: number }[]>().notNull().default([]),
   tests: jsonb("tests").$type<string[]>().notNull().default([]),
 });
 

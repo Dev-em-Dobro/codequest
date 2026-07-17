@@ -2,7 +2,11 @@ import { storage } from "./storage";
 import type { AppUser, UpdateUserInput } from "./types";
 
 export { validationEngine } from "./validation-engine";
-export { getExerciseHint, reviewExerciseCode } from "./ai-service";
+export {
+    getExerciseHint,
+    reviewExerciseCode,
+    explainValidationFailures,
+} from "./ai-service";
 
 const userStorageAdapter = {
 	async getUser(id: string): Promise<AppUser | undefined> {

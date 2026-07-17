@@ -15,6 +15,7 @@ export interface IStorage {
     getExercises(): Promise<Exercise[]>;
     getExercise(id: string): Promise<Exercise | undefined>;
     createExercise(exercise: InsertExercise & { id?: string }): Promise<Exercise>;
+    updateExercise(id: string, data: Partial<InsertExercise>): Promise<Exercise>;
     deleteExercise(id: string): Promise<void>;
     getUserProgress(userId: string): Promise<UserProgress[]>;
     getExerciseProgress(userId: string, exerciseId: string): Promise<UserProgress | undefined>;
@@ -185,7 +186,7 @@ function mapExercise(row: DbRow): Exercise {
         solutionCode: normalizeUserCode(data.solutionCode),
         hints: Array.isArray(data.hints) ? (data.hints as string[]) : [],
         validationRules: Array.isArray(data.validationRules)
-            ? (data.validationRules as Array<{ type: string; rule: string; message: string }>)
+            ? (data.validationRules as Array<{ type: string; rule: string; message: string; count?: number }>)
             : [],
         tests: Array.isArray(data.tests) ? (data.tests as string[]) : [],
     };
@@ -486,6 +487,20 @@ export class NeonJsonStorage implements IStorage {
     `;
 
         return mapExercise(rows[0]);
+    }
+
+    async updateExercise(id: string, data: Partial<InsertExercise>): Promise<Exercise> {
+        ensureDatabaseConfigured();
+        const existing = await this.getExercise(id);
+        if (!existing) {
+            throw new Error(`Exercise not found: ${id}`);
+        }
+
+        return this.createExercise({
+            ...existing,
+            ...data,
+            id: existing.id,
+        });
     }
 
     async deleteExercise(id: string): Promise<void> {

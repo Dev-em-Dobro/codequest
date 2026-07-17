@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
-import { storage, reviewExerciseCode } from "@/lib/server/deps";
+import { storage, validationEngine, explainValidationFailures } from "@/lib/server/deps";
 import { parseJsonBody } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import type { CodeTriplet } from "@/lib/server/storage-types";
@@ -36,17 +36,42 @@ export async function POST(request: Request, { params }: Params) {
             return NextResponse.json({ message: "Exercise not found" }, { status: 404 });
         }
 
-        const userCode = body?.userCode || { html: "", css: "", javascript: "" };
-        const review = await reviewExerciseCode(
-            userCode.html || "",
-            userCode.css || "",
-            userCode.javascript || "",
-            exercise.title,
-            exercise.description || "",
-            exercise.instructions || "",
-        );
+        const userCode = {
+            html: body?.userCode?.html || "",
+            css: body?.userCode?.css || "",
+            javascript: body?.userCode?.javascript || "",
+        };
 
-        return NextResponse.json(review);
+        const validation = await validationEngine.validateExercise(exercise, userCode);
+        const score = Math.round(validation.overallScore);
+        const isCorrect = validation.isValid && score >= 100;
+
+        if (isCorrect) {
+            return NextResponse.json({
+                feedback: "Exercício concluído! Seu código atende aos requisitos do enunciado.",
+                suggestions: [],
+                isCorrect: true,
+                score: 100,
+            });
+        }
+
+        const explanation = await explainValidationFailures({
+            exerciseTitle: exercise.title,
+            exerciseInstructions: exercise.instructions || exercise.description || "",
+            requirements: validation.requirements,
+            failures: validation.failures,
+            score,
+            htmlCode: userCode.html,
+            cssCode: userCode.css,
+            javascriptCode: userCode.javascript,
+        });
+
+        return NextResponse.json({
+            feedback: explanation.feedback,
+            suggestions: explanation.suggestions,
+            isCorrect: false,
+            score,
+        });
     } catch {
         return NextResponse.json(
             {

@@ -431,7 +431,7 @@ export default function ExerciseDetailPage() {
                 await completeMutation.mutateAsync();
                 setStatusMessage({
                     tone: "success",
-                    text: `Parabens! Exercicio concluido! A IA validou seu codigo. Voce ganhou ${exerciseQuery.data?.points ?? 10} pontos!`,
+                    text: `Parabens! Exercicio concluido! Seu codigo atende ao enunciado. Voce ganhou ${exerciseQuery.data?.points ?? 10} pontos!`,
                 });
 
                 void queryClient.invalidateQueries({ queryKey: ["/api/progress", exerciseId] });

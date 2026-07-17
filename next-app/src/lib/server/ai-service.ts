@@ -43,32 +43,51 @@ export interface CodeReviewResult {
     isCorrect?: boolean;
 }
 
-export async function reviewExerciseCode(
-    htmlCode: string,
-    cssCode: string,
-    javascriptCode: string,
-    exerciseTitle: string,
-    exerciseDescription: string,
-    exerciseInstructions: string,
-): Promise<CodeReviewResult> {
+export interface ValidationFailureInput {
+    rule: string;
+    message: string;
+}
+
+/**
+ * Redige feedback apenas com base nas falhas já detectadas pelo ValidationEngine.
+ * NÃO calcula score nem inventa requisitos.
+ */
+export async function explainValidationFailures(params: {
+    exerciseTitle: string;
+    exerciseInstructions: string;
+    requirements: string[];
+    failures: ValidationFailureInput[];
+    score: number;
+    htmlCode?: string;
+    cssCode?: string;
+    javascriptCode?: string;
+}): Promise<Pick<CodeReviewResult, "feedback" | "suggestions">> {
+    const fallbackSuggestions = params.failures
+        .map((failure) => failure.message)
+        .filter(Boolean)
+        .slice(0, 3);
+
+    const fallbackFeedback =
+        fallbackSuggestions[0] ||
+        "O código ainda não atende todos os requisitos do enunciado.";
+
     if (!openai) {
         return {
-            feedback: "O serviço de revisão por IA não está configurado. Use a validação automática.",
-            suggestions: ["Configure a chave da API OpenAI para habilitar revisão por IA"],
-            isCorrect: false,
-            score: 0,
+            feedback: fallbackFeedback,
+            suggestions: fallbackSuggestions.length
+                ? fallbackSuggestions
+                : ["Revise as instruções do exercício e tente novamente"],
         };
     }
 
     try {
-        const sanitizedHtml = sanitizeCode(htmlCode);
-        const sanitizedCss = sanitizeCode(cssCode);
-        const sanitizedJs = sanitizeCode(javascriptCode);
-        const sanitizedTitle = sanitizeInput(exerciseTitle);
-        const sanitizedDescription = sanitizeInput(exerciseDescription);
-        const sanitizedInstructions = sanitizeInput(exerciseInstructions);
+        const sanitizedTitle = sanitizeInput(params.exerciseTitle);
+        const sanitizedInstructions = sanitizeInput(params.exerciseInstructions);
+        const sanitizedHtml = sanitizeCode(params.htmlCode || "");
+        const sanitizedCss = sanitizeCode(params.cssCode || "");
+        const sanitizedJs = sanitizeCode(params.javascriptCode || "");
 
-        const codeToReview = [
+        const codeSnippet = [
             sanitizedHtml && `HTML:\n${sanitizedHtml}`,
             sanitizedCss && `CSS:\n${sanitizedCss}`,
             sanitizedJs && `JavaScript:\n${sanitizedJs}`,
@@ -76,61 +95,51 @@ export async function reviewExerciseCode(
             .filter(Boolean)
             .join("\n\n");
 
+        const requirementsList = params.requirements.length
+            ? params.requirements.map((item, index) => `${index + 1}. ${item}`).join("\n")
+            : "(nenhum requisito estruturado)";
+
+        const failuresList = params.failures.length
+            ? params.failures.map((item, index) => `${index + 1}. ${item.message}`).join("\n")
+            : "(nenhuma falha listada)";
+
         const messages: ChatCompletionMessageParam[] = [
             {
                 role: "system",
-                content: `Você é um especialista em revisão de código web (HTML, CSS, JavaScript) para exercícios educacionais.
+                content: `Você é um tutor de programação web. Sua ÚNICA tarefa é explicar falhas JÁ DETECTADAS por um validador automático.
 
-Analise cuidadosamente se o código atende TODOS os requisitos do exercício, mas tenha discernimento para julgar se o códigos atende os requisitos, mesmo que os seletores, classes ou ids estejam diferentes do pedido no enunciado.
+REGRAS OBRIGATÓRIAS:
+- NÃO invente requisitos, propriedades CSS, tags HTML ou conceitos que não estejam na lista de FALHAS ou REQUISITOS.
+- NÃO sugira melhorias extras (ex.: align-items, gap, height, flex-wrap) se isso não estiver nas falhas.
+- NÃO calcule nem altere score ou isCorrect — eles já foram definidos pelo sistema.
+- Sugestões devem ser paráfrases curtas das falhas detectadas (no máximo 3).
+- Feedback em português, no máximo 2 frases (até 200 caracteres).
 
-REGRAS IMPORTANTES DE AVALIAÇÃO:
-- Score 100 e isCorrect true: APENAS se o código atender todos os requisitos
-- Score 80-99: Código quase perfeito, mas falta algum pequeno detalhe
-- Score 60-79: Código parcialmente correto, faltam alguns requisitos
-- Score 40-59: Código com a ideia certa mas muitas falhas
-- Score 0-39: Código muito incorreto ou vazio
-
-Para exercícios CSS:
-- Verifique se todos os seletores pedidos estão presentes
-- Verifique se todas as propriedades solicitadas foram aplicadas
-- caso tenha sido usado outros seletores que não foram solicitados, verifique se eles estão corretos do ponto de vista de CSS, se sim pode dar o exercicio como correto
-
-Para exercícios HTML:
-- Verifique se todas as tags pedidas estão presentes
-- Verifique se a estrutura está correta
-- Verifique se o conteúdo solicitado está presente
-- Verifique se o código estruturamelmente esta certo, mesmo que as classes ou ids estajam diferentes do pedido no enunciado
-
-Para exercícios JavaScript:
-- Verifique se a lógica está correta
-- Verifique se produz o resultado esperado
-
-Feedback em português, sempre curto e direto:
-- "feedback": no máximo 2 frases (até 200 caracteres). Vá direto ao ponto.
-- "suggestions": no máximo 3 itens curtos (cada um com até 100 caracteres)
-- Se correto (100): parabenize brevemente
-- Se incorreto: diga o principal problema sem dar a resposta completa
-
-Retorne APENAS um JSON no formato:
+Retorne APENAS JSON:
 {
-  "feedback": "string com feedback principal curto",
-  "suggestions": ["array", "de", "sugestões curtas"],
-  "isCorrect": boolean (true APENAS se score = 100),
-  "score": número de 0 a 100
+  "feedback": "string",
+  "suggestions": ["string", "string"]
 }`,
             },
             {
                 role: "user",
                 content: `EXERCÍCIO: ${sanitizedTitle}
 
-DESCRIÇÃO: ${sanitizedDescription}
+INSTRUÇÕES DO ENUNCIADO: ${sanitizedInstructions}
 
-INSTRUÇÕES: ${sanitizedInstructions}
+REQUISITOS OBRIGATÓRIOS (única fonte de verdade):
+${requirementsList}
 
-CÓDIGO ENVIADO:
-${codeToReview}
+FALHAS DETECTADAS PELO VALIDADOR (explique somente estas):
+${failuresList}
 
-Analise se este código resolve o exercício corretamente.`,
+SCORE JÁ CALCULADO PELO SISTEMA: ${params.score}
+isCorrect: false
+
+CÓDIGO DO ALUNO (contexto, não invente requisitos a partir dele):
+${codeSnippet || "(vazio)"}
+
+Escreva feedback e sugestões alinhados APENAS às falhas acima.`,
             },
         ];
 
@@ -138,8 +147,8 @@ Analise se este código resolve o exercício corretamente.`,
             model: "gpt-4.1-nano",
             messages,
             response_format: { type: "json_object" },
-            temperature: 0.3,
-            max_tokens: 280,
+            temperature: 0,
+            max_tokens: 220,
         });
 
         const result = response.choices[0].message.content;
@@ -147,7 +156,7 @@ Analise se este código resolve o exercício corretamente.`,
             throw new Error("Resposta vazia da OpenAI");
         }
 
-        const parsed = JSON.parse(result) as CodeReviewResult;
+        const parsed = JSON.parse(result) as Partial<CodeReviewResult>;
         const suggestions = Array.isArray(parsed.suggestions)
             ? parsed.suggestions
                 .filter((item): item is string => typeof item === "string")
@@ -157,27 +166,56 @@ Analise se este código resolve o exercício corretamente.`,
                 .map((item) => (item.length > 100 ? `${item.slice(0, 100).trimEnd()}...` : item))
             : [];
 
-        const feedback = typeof parsed.feedback === "string"
-            ? parsed.feedback.trim()
-            : "";
+        const feedback = typeof parsed.feedback === "string" ? parsed.feedback.trim() : "";
         const trimmedFeedback = feedback.length > 220
             ? `${feedback.slice(0, 220).trimEnd()}...`
             : feedback;
 
         return {
-            ...parsed,
-            feedback: trimmedFeedback,
-            suggestions,
+            feedback: trimmedFeedback || fallbackFeedback,
+            suggestions: suggestions.length ? suggestions : fallbackSuggestions,
         };
     } catch (error) {
-        console.error("Erro na revisão de código OpenAI:", error);
+        console.error("Erro ao explicar falhas com OpenAI:", error);
         return {
-            feedback: "Desculpe, houve um erro ao analisar seu código. Tente novamente.",
-            suggestions: ["Verifique sua conexão e tente novamente"],
-            isCorrect: false,
-            score: 0,
+            feedback: fallbackFeedback,
+            suggestions: fallbackSuggestions.length
+                ? fallbackSuggestions
+                : ["Revise as instruções do exercício e tente novamente"],
         };
     }
+}
+
+/** @deprecated Preferir validação determinística + explainValidationFailures */
+export async function reviewExerciseCode(
+    htmlCode: string,
+    cssCode: string,
+    javascriptCode: string,
+    exerciseTitle: string,
+    exerciseDescription: string,
+    exerciseInstructions: string,
+): Promise<CodeReviewResult> {
+    const explanation = await explainValidationFailures({
+        exerciseTitle,
+        exerciseInstructions: `${exerciseDescription}\n${exerciseInstructions}`,
+        requirements: [],
+        failures: [
+            {
+                rule: "legacy",
+                message: "Revise o enunciado e confira se todos os requisitos pedidos foram atendidos.",
+            },
+        ],
+        score: 0,
+        htmlCode,
+        cssCode,
+        javascriptCode,
+    });
+
+    return {
+        ...explanation,
+        isCorrect: false,
+        score: 0,
+    };
 }
 
 export async function getExerciseHint(

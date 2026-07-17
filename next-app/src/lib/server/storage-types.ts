@@ -20,7 +20,7 @@ export interface Exercise {
     starterTemplate: CodeTriplet;
     solutionCode: CodeTriplet;
     hints: string[];
-    validationRules: Array<{ type: string; rule: string; message: string }>;
+    validationRules: Array<{ type: string; rule: string; message: string; count?: number }>;
     tests: string[];
 }
 
