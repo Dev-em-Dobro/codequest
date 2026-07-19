@@ -49,6 +49,14 @@ function normalizeCssForMatch(css: string): string {
     return css.toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Regras no banco às vezes vêm escapadas como regex (ex.: "\\*") — contains é busca literal. */
+function normalizeContainsNeedle(rule: string): string {
+    return rule
+        .replace(/\\([.*+?^${}()|[\]\\])/g, "$1")
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+
 function cssContainsDisplayFlex(cssLower: string): boolean {
     return cssLower.includes("display: flex") || cssLower.includes("display:flex");
 }
@@ -182,7 +190,7 @@ export class ValidationEngine {
             const targetRaw = category === "css" ? primary : combined;
             const target =
                 category === "css" ? normalizeCssForMatch(targetRaw) : targetRaw.toLowerCase();
-            const needle = rule.rule.toLowerCase().replace(/\s+/g, " ");
+            const needle = normalizeContainsNeedle(rule.rule);
 
             if (rule.type === "contains") {
                 // display:flex aceita com ou sem espaço
