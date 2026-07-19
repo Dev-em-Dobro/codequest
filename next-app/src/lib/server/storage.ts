@@ -189,6 +189,10 @@ function mapExercise(row: DbRow): Exercise {
             ? (data.validationRules as Array<{ type: string; rule: string; message: string; count?: number }>)
             : [],
         tests: Array.isArray(data.tests) ? (data.tests as string[]) : [],
+        reviewMode:
+            data.reviewMode === "ai" || data.reviewMode === "deterministic"
+                ? data.reviewMode
+                : undefined,
     };
 }
 
@@ -476,6 +480,7 @@ export class NeonJsonStorage implements IStorage {
             hints: Array.isArray(exercise.hints) ? exercise.hints : [],
             validationRules: Array.isArray(exercise.validationRules) ? exercise.validationRules : [],
             tests: Array.isArray(exercise.tests) ? exercise.tests : [],
+            ...(exercise.reviewMode ? { reviewMode: exercise.reviewMode } : {}),
         };
 
         const rows = await sql<DbRow[]>`

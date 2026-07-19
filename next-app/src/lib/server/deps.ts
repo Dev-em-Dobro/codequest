@@ -6,7 +6,9 @@ export {
     getExerciseHint,
     reviewExerciseCode,
     explainValidationFailures,
+    reviewExerciseByInstructions,
 } from "./ai-service";
+export { getExerciseReviewMode, AI_REVIEW_EXERCISE_IDS } from "./validation-engine";
 
 const userStorageAdapter = {
 	async getUser(id: string): Promise<AppUser | undefined> {

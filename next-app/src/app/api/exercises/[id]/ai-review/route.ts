@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
-import { storage, validationEngine, explainValidationFailures } from "@/lib/server/deps";
+import {
+    storage,
+    validationEngine,
+    explainValidationFailures,
+    reviewExerciseByInstructions,
+} from "@/lib/server/deps";
+import { getExerciseReviewMode } from "@/lib/server/validation-engine";
 import { parseJsonBody } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import type { CodeTriplet } from "@/lib/server/storage-types";
@@ -41,6 +47,25 @@ export async function POST(request: Request, { params }: Params) {
             css: body?.userCode?.css || "",
             javascript: body?.userCode?.javascript || "",
         };
+
+        // Enunciado aberto (cores/textos livres): IA julga só pelo enunciado.
+        if (getExerciseReviewMode(exercise) === "ai") {
+            const review = await reviewExerciseByInstructions({
+                htmlCode: userCode.html,
+                cssCode: userCode.css,
+                javascriptCode: userCode.javascript,
+                exerciseTitle: exercise.title,
+                exerciseDescription: exercise.description || "",
+                exerciseInstructions: exercise.instructions || "",
+            });
+
+            return NextResponse.json({
+                feedback: review.feedback,
+                suggestions: review.suggestions,
+                isCorrect: Boolean(review.isCorrect) && (review.score ?? 0) >= 100,
+                score: review.isCorrect ? 100 : Math.round(review.score ?? 0),
+            });
+        }
 
         const validation = await validationEngine.validateExercise(exercise, userCode);
         const score = Math.round(validation.overallScore);

@@ -29,6 +29,44 @@ export type ValidationRule = {
     count?: number;
 };
 
+/** Exercícios que sempre usam correção por IA (enunciado aberto / soluções equivalentes). */
+export const AI_REVIEW_EXERCISE_IDS = new Set<string>([
+    // JS — regras contains forçavam sintaxe/nomes exatos demais
+    "javascript-destructuring-rest-default",
+    "javascript-spread-operator",
+    "javascript-filter-objetos",
+    "javascript-find-array-objetos",
+    "javascript-map-objetos",
+    "javascript-arrays-for-foreach",
+    "javascript-arrays-frutas",
+    "javascript-reduce-carrinho",
+    "javascript-reduce-soma",
+    "javascript-objetos-pessoa",
+    "javascript-arrow-function",
+    "javascript-funcao-com-retorno-soma",
+]);
+
+/**
+ * Modo de correção:
+ * - reviewMode/ai ids explícitos → ai
+ * - categoria javascript → ai first (soluções equivalentes comuns)
+ * - demais → deterministic
+ */
+export function getExerciseReviewMode(exercise: Exercise): "deterministic" | "ai" {
+    if (exercise.reviewMode === "ai" || AI_REVIEW_EXERCISE_IDS.has(exercise.id)) {
+        return "ai";
+    }
+    // Opt-out explícito no banco
+    if (exercise.reviewMode === "deterministic") {
+        return "deterministic";
+    }
+    // JS: IA primeiro — alunos usam const/let, nomes e espaçamentos diferentes
+    if (exercise.category === "javascript") {
+        return "ai";
+    }
+    return "deterministic";
+}
+
 /** Regras padrão alinhadas ao enunciado quando o exercício ainda não tem validationRules no banco. */
 export const DEFAULT_VALIDATION_RULES: Record<string, ValidationRule[]> = {
     "css-flexbox-basico": [
@@ -55,6 +93,28 @@ function normalizeContainsNeedle(rule: string): string {
         .replace(/\\([.*+?^${}()|[\]\\])/g, "$1")
         .toLowerCase()
         .replace(/\s+/g, " ");
+}
+
+/** class='x' e class="x" (e variações de espaço) devem equivaler. */
+function targetContainsNeedle(target: string, needle: string): boolean {
+    if (target.includes(needle) || target.includes(needle.replace(/\s+/g, ""))) {
+        return true;
+    }
+
+    const classAttr = needle.match(/^class\s*=\s*['"]([^'"]+)['"]$/i);
+    if (classAttr) {
+        const className = classAttr[1].toLowerCase();
+        const classPatterns = [
+            `class="${className}"`,
+            `class='${className}'`,
+            `class=${className}`,
+            `class = "${className}"`,
+            `class = '${className}'`,
+        ];
+        return classPatterns.some((pattern) => target.includes(pattern));
+    }
+
+    return false;
 }
 
 function cssContainsDisplayFlex(cssLower: string): boolean {
@@ -170,26 +230,20 @@ export class ValidationEngine {
     applyValidationRules(
         rules: ValidationRule[],
         userCode: { html: string; css: string; javascript: string },
-        category: Exercise["category"],
+        _category: Exercise["category"],
     ): ValidationFailure[] {
         if (!rules.length) {
             return [];
         }
 
-        const haystackByCategory: Record<Exercise["category"], string> = {
-            html: userCode.html,
-            css: userCode.css,
-            javascript: userCode.javascript,
-        };
-
-        const primary = haystackByCategory[category] || "";
         const combined = `${userCode.html}\n${userCode.css}\n${userCode.javascript}`;
         const failures: ValidationFailure[] = [];
 
         for (const rule of rules) {
-            const targetRaw = category === "css" ? primary : combined;
-            const target =
-                category === "css" ? normalizeCssForMatch(targetRaw) : targetRaw.toLowerCase();
+            // Sempre busca no código completo (HTML+CSS+JS): exercícios híbridos
+            // (ex.: html-css-*) quebrariam se olhassem só a categoria.
+            const targetRaw = combined;
+            const target = normalizeCssForMatch(targetRaw);
             const needle = normalizeContainsNeedle(rule.rule);
 
             if (rule.type === "contains") {
@@ -201,7 +255,7 @@ export class ValidationEngine {
                     continue;
                 }
 
-                if (!target.includes(needle) && !target.includes(needle.replace(/\s+/g, ""))) {
+                if (!targetContainsNeedle(target, needle)) {
                     failures.push({ rule: rule.rule, message: rule.message });
                 }
                 continue;

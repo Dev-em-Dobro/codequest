@@ -1,5 +1,7 @@
 export type ExerciseDifficulty = "iniciante" | "intermediario" | "avancado";
 export type ExerciseCategory = "html" | "css" | "javascript";
+/** deterministic = ValidationEngine; ai = juízo só pelo enunciado (cores/valores abertos). */
+export type ExerciseReviewMode = "deterministic" | "ai";
 
 export interface CodeTriplet {
     html: string;
@@ -22,6 +24,8 @@ export interface Exercise {
     hints: string[];
     validationRules: Array<{ type: string; rule: string; message: string; count?: number }>;
     tests: string[];
+    /** Quando "ai", a correção ignora validationRules rígidas e usa só o enunciado. */
+    reviewMode?: ExerciseReviewMode;
 }
 
 export interface InsertExercise extends Omit<Exercise, "id"> {

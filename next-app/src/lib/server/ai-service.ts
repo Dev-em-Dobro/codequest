@@ -195,27 +195,151 @@ export async function reviewExerciseCode(
     exerciseDescription: string,
     exerciseInstructions: string,
 ): Promise<CodeReviewResult> {
-    const explanation = await explainValidationFailures({
-        exerciseTitle,
-        exerciseInstructions: `${exerciseDescription}\n${exerciseInstructions}`,
-        requirements: [],
-        failures: [
-            {
-                rule: "legacy",
-                message: "Revise o enunciado e confira se todos os requisitos pedidos foram atendidos.",
-            },
-        ],
-        score: 0,
+    return reviewExerciseByInstructions({
         htmlCode,
         cssCode,
         javascriptCode,
+        exerciseTitle,
+        exerciseDescription,
+        exerciseInstructions,
     });
+}
 
-    return {
-        ...explanation,
-        isCorrect: false,
-        score: 0,
-    };
+/**
+ * Correção aberta: julga SOMENTE pelo enunciado.
+ * Use quando o exercício aceita cores/textos/valores equivalentes (não fixos no banco).
+ */
+export async function reviewExerciseByInstructions(params: {
+    htmlCode: string;
+    cssCode: string;
+    javascriptCode: string;
+    exerciseTitle: string;
+    exerciseDescription?: string;
+    exerciseInstructions: string;
+}): Promise<CodeReviewResult> {
+    if (!openai) {
+        return {
+            feedback: "O serviço de revisão por IA não está configurado.",
+            suggestions: ["Configure a chave da API OpenAI para habilitar revisão por IA"],
+            isCorrect: false,
+            score: 0,
+        };
+    }
+
+    try {
+        const sanitizedHtml = sanitizeCode(params.htmlCode);
+        const sanitizedCss = sanitizeCode(params.cssCode);
+        const sanitizedJs = sanitizeCode(params.javascriptCode);
+        const sanitizedTitle = sanitizeInput(params.exerciseTitle);
+        const sanitizedDescription = sanitizeInput(params.exerciseDescription || "");
+        const sanitizedInstructions = sanitizeInput(params.exerciseInstructions);
+
+        const codeToReview = [
+            sanitizedHtml && `HTML:\n${sanitizedHtml}`,
+            sanitizedCss && `CSS:\n${sanitizedCss}`,
+            sanitizedJs && `JavaScript:\n${sanitizedJs}`,
+        ]
+            .filter(Boolean)
+            .join("\n\n");
+
+        const messages: ChatCompletionMessageParam[] = [
+            {
+                role: "system",
+                content: `Você avalia exercícios de HTML/CSS/JS com enunciado ABERTO.
+
+FONTE ÚNICA DE VERDADE: as INSTRUÇÕES do exercício.
+- NÃO exija texto, cor hex, fonte ou valor que não esteja escrito no enunciado.
+- Se o enunciado diz "uma cor específica" / "ajuste a cor" sem nomear a cor, QUALQUER cor válida serve.
+- Se o enunciado nomeia a cor (ex.: vermelho), aceite equivalentes (red, #f00, #ff0000, #e74c3c, etc.).
+- Aceite class="x" e class='x' como equivalentes.
+- Aceite font-weight: bold e bolder para "negrito".
+- Aceite seletores/formatos CSS equivalentes (espaços, ordem de propriedades).
+- NÃO invente requisitos extras (não peça tipografia, layout ou cores além do enunciado).
+- Texto de título/parágrafo pode ser qualquer conteúdo razoável, salvo se o enunciado pedir texto exato.
+
+NOTA:
+- 100 e isCorrect true: atende TODOS os pontos do enunciado
+- 80-99: quase completo, falta detalhe pequeno do enunciado
+- 60-79: parcial
+- abaixo de 60: incompleto
+
+Feedback em português, curto (máx. 2 frases / 200 chars).
+suggestions: no máximo 3 itens curtos, só sobre o que falta no enunciado.
+
+Retorne APENAS JSON:
+{
+  "feedback": "string",
+  "suggestions": ["string"],
+  "isCorrect": boolean,
+  "score": number
+}`,
+            },
+            {
+                role: "user",
+                content: `EXERCÍCIO: ${sanitizedTitle}
+
+DESCRIÇÃO: ${sanitizedDescription}
+
+INSTRUÇÕES (única fonte de verdade):
+${sanitizedInstructions}
+
+CÓDIGO DO ALUNO:
+${codeToReview || "(vazio)"}
+
+Avalie se o código atende ao enunciado. Não compare com uma solução secreta do banco.`,
+            },
+        ];
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4.1-nano",
+            messages,
+            response_format: { type: "json_object" },
+            temperature: 0,
+            max_tokens: 280,
+        });
+
+        const result = response.choices[0].message.content;
+        if (!result) {
+            throw new Error("Resposta vazia da OpenAI");
+        }
+
+        const parsed = JSON.parse(result) as CodeReviewResult;
+        const suggestions = Array.isArray(parsed.suggestions)
+            ? parsed.suggestions
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((item) => (item.length > 100 ? `${item.slice(0, 100).trimEnd()}...` : item))
+            : [];
+
+        const feedback = typeof parsed.feedback === "string" ? parsed.feedback.trim() : "";
+        const trimmedFeedback = feedback.length > 220
+            ? `${feedback.slice(0, 220).trimEnd()}...`
+            : feedback;
+
+        const rawScore = typeof parsed.score === "number" && Number.isFinite(parsed.score)
+            ? Math.max(0, Math.min(100, Math.round(parsed.score)))
+            : 0;
+        const isCorrect = Boolean(parsed.isCorrect) && rawScore >= 100;
+
+        return {
+            feedback: trimmedFeedback || (isCorrect
+                ? "Exercício concluído! Seu código atende ao enunciado."
+                : "O código ainda não atende todos os requisitos do enunciado."),
+            suggestions: isCorrect ? [] : suggestions,
+            isCorrect,
+            score: isCorrect ? 100 : rawScore,
+        };
+    } catch (error) {
+        console.error("Erro na revisão aberta por IA:", error);
+        return {
+            feedback: "Desculpe, houve um erro ao analisar seu código. Tente novamente.",
+            suggestions: ["Verifique sua conexão e tente novamente"],
+            isCorrect: false,
+            score: 0,
+        };
+    }
 }
 
 export async function getExerciseHint(

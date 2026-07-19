@@ -175,6 +175,7 @@ export default function AddExercisePage() {
                         <li>• solutionCode: Objeto com html, css e javascript</li>
                         <li>• hints: Array de dicas</li>
                         <li>• validationRules: Array de regras de validação</li>
+                        <li>• reviewMode: deterministic | ai (JS usa AI por padrão; HTML/CSS deterministic salvo lista/exceção)</li>
                         <li>• tests: Array de descrições de testes</li>
                     </ul>
                 </div>
