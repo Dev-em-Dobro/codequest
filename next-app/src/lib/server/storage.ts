@@ -207,6 +207,7 @@ function mapProgress(row: DbRow): UserProgress {
         completed: Boolean(data.completed),
         userCode: normalizeUserCode(data.userCode),
         attempts: toNumber(data.attempts, 0),
+        incorrectAttempts: toNumber(data.incorrectAttempts, 0),
         pointsEarned: toNumber(data.pointsEarned, 0),
         completedAt: (data.completedAt as string | null | undefined) ?? null,
         createdAt: data.createdAt as string | undefined,
@@ -576,6 +577,7 @@ export class NeonJsonStorage implements IStorage {
             exerciseId: bareExerciseId,
             completed: progress.completed ?? false,
             attempts: progress.attempts ?? 0,
+            incorrectAttempts: progress.incorrectAttempts ?? 0,
             pointsEarned: progress.pointsEarned ?? 0,
             userCode: normalizeUserCode(progress.userCode),
             createdAt: timestamp,
@@ -607,6 +609,7 @@ export class NeonJsonStorage implements IStorage {
                 exerciseId,
                 completed: false,
                 attempts: 0,
+                incorrectAttempts: 0,
                 pointsEarned: 0,
                 userCode: { html: "", css: "", javascript: "" },
             };

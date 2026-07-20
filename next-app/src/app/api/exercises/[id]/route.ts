@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { storage } from "@/lib/server/deps";
+import { toPublicExercise } from "@/lib/server/exercise-public";
 import { internalError } from "@/lib/server/http";
 
 export const runtime = "nodejs";
@@ -15,7 +16,7 @@ export async function GET(_request: Request, { params }: Params) {
             return NextResponse.json({ message: "Exercise not found" }, { status: 404 });
         }
 
-        return NextResponse.json(exercise);
+        return NextResponse.json(toPublicExercise(exercise));
     } catch {
         return internalError();
     }

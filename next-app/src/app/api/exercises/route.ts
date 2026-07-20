@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { storage } from "@/lib/server/deps";
+import { toPublicExercise } from "@/lib/server/exercise-public";
 import { internalError } from "@/lib/server/http";
 
 export const runtime = "nodejs";
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
             filteredExercises = filteredExercises.filter((ex) => ex.difficulty === difficulty);
         }
 
-        return NextResponse.json(filteredExercises);
+        return NextResponse.json(filteredExercises.map(toPublicExercise));
     } catch {
         return internalError();
     }

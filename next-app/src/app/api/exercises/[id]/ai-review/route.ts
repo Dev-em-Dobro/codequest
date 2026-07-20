@@ -6,15 +6,43 @@ import {
     explainValidationFailures,
     reviewExerciseByInstructions,
 } from "@/lib/server/deps";
+import { SOLUTION_UNLOCK_AFTER } from "@/lib/server/exercise-public";
 import { getExerciseReviewMode } from "@/lib/server/validation-engine";
 import { parseJsonBody } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
-import type { CodeTriplet } from "@/lib/server/storage-types";
+import type { CodeTriplet, UserProgress } from "@/lib/server/storage-types";
 
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
 type ReviewPayload = { userCode?: Partial<CodeTriplet> };
+
+async function ensureProgress(userId: string, exerciseId: string): Promise<UserProgress> {
+    const existing = await storage.getExerciseProgress(userId, exerciseId);
+    if (existing) {
+        return existing;
+    }
+
+    return storage.createUserProgress({
+        id: `${userId}_${exerciseId}`,
+        userId,
+        exerciseId,
+        completed: false,
+        userCode: { html: "", css: "", javascript: "" },
+        pointsEarned: 0,
+        attempts: 0,
+        incorrectAttempts: 0,
+    });
+}
+
+async function recordIncorrectAttempt(userId: string, exerciseId: string): Promise<number> {
+    const progress = await ensureProgress(userId, exerciseId);
+    const nextCount = (progress.incorrectAttempts || 0) + 1;
+    await storage.updateUserProgress(userId, exerciseId, {
+        incorrectAttempts: nextCount,
+    });
+    return nextCount;
+}
 
 export async function POST(request: Request, { params }: Params) {
     try {
@@ -48,6 +76,23 @@ export async function POST(request: Request, { params }: Params) {
             javascript: body?.userCode?.javascript || "",
         };
 
+        const progress = await ensureProgress(userId, id);
+
+        const buildFailurePayload = async (payload: {
+            feedback: string;
+            suggestions: string[];
+            score: number;
+        }) => {
+            const incorrectAttempts = await recordIncorrectAttempt(userId, id);
+            return {
+                ...payload,
+                isCorrect: false,
+                incorrectAttempts,
+                solutionUnlocked: incorrectAttempts >= SOLUTION_UNLOCK_AFTER || progress.completed,
+                requiredAttempts: SOLUTION_UNLOCK_AFTER,
+            };
+        };
+
         // Enunciado aberto (cores/textos livres): IA julga só pelo enunciado.
         if (getExerciseReviewMode(exercise) === "ai") {
             const review = await reviewExerciseByInstructions({
@@ -59,12 +104,26 @@ export async function POST(request: Request, { params }: Params) {
                 exerciseInstructions: exercise.instructions || "",
             });
 
-            return NextResponse.json({
-                feedback: review.feedback,
-                suggestions: review.suggestions,
-                isCorrect: Boolean(review.isCorrect) && (review.score ?? 0) >= 100,
-                score: review.isCorrect ? 100 : Math.round(review.score ?? 0),
-            });
+            const isCorrect = Boolean(review.isCorrect) && (review.score ?? 0) >= 100;
+            if (isCorrect) {
+                return NextResponse.json({
+                    feedback: review.feedback,
+                    suggestions: review.suggestions,
+                    isCorrect: true,
+                    score: 100,
+                    incorrectAttempts: progress.incorrectAttempts || 0,
+                    solutionUnlocked: true,
+                    requiredAttempts: SOLUTION_UNLOCK_AFTER,
+                });
+            }
+
+            return NextResponse.json(
+                await buildFailurePayload({
+                    feedback: review.feedback,
+                    suggestions: review.suggestions,
+                    score: Math.round(review.score ?? 0),
+                }),
+            );
         }
 
         const validation = await validationEngine.validateExercise(exercise, userCode);
@@ -77,6 +136,9 @@ export async function POST(request: Request, { params }: Params) {
                 suggestions: [],
                 isCorrect: true,
                 score: 100,
+                incorrectAttempts: progress.incorrectAttempts || 0,
+                solutionUnlocked: true,
+                requiredAttempts: SOLUTION_UNLOCK_AFTER,
             });
         }
 
@@ -91,12 +153,13 @@ export async function POST(request: Request, { params }: Params) {
             javascriptCode: userCode.javascript,
         });
 
-        return NextResponse.json({
-            feedback: explanation.feedback,
-            suggestions: explanation.suggestions,
-            isCorrect: false,
-            score,
-        });
+        return NextResponse.json(
+            await buildFailurePayload({
+                feedback: explanation.feedback,
+                suggestions: explanation.suggestions,
+                score,
+            }),
+        );
     } catch {
         return NextResponse.json(
             {

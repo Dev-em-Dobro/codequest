@@ -46,6 +46,7 @@ type ProgressEntry = {
     completed: boolean;
     userCode?: Partial<CodeTriplet>;
     pointsEarned: number;
+    incorrectAttempts?: number;
 };
 
 type AiReviewResponse = {
@@ -53,7 +54,19 @@ type AiReviewResponse = {
     suggestions: string[];
     score?: number;
     isCorrect?: boolean;
+    incorrectAttempts?: number;
+    solutionUnlocked?: boolean;
+    requiredAttempts?: number;
 };
+
+type SolutionResponse = {
+    unlocked: boolean;
+    solutionCode: CodeTriplet;
+    incorrectAttempts?: number;
+    requiredAttempts?: number;
+};
+
+const SOLUTION_UNLOCK_AFTER = 3;
 
 type StatusMessage = {
     tone: "info" | "success" | "error";
@@ -192,6 +205,7 @@ export default function ExerciseDetailPage() {
     const [draftCode, setDraftCode] = useState<{ exerciseId: string; code: CodeTriplet } | null>(null);
     const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
     const [showTips, setShowTips] = useState(false);
+    const [showSolution, setShowSolution] = useState(false);
     const [lastPersistedCode, setLastPersistedCode] = useState<{ exerciseId: string; code: CodeTriplet } | null>(null);
     const [jsExecutionState, setJsExecutionState] = useState<{
         exerciseId: string;
@@ -239,6 +253,18 @@ export default function ExerciseDetailPage() {
         enabled: isAuthenticated,
         retry: false,
         staleTime: 30 * 1000,
+    });
+
+    const incorrectAttempts = progressQuery.data?.incorrectAttempts ?? 0;
+    const solutionUnlocked =
+        Boolean(progressQuery.data?.completed) || incorrectAttempts >= SOLUTION_UNLOCK_AFTER;
+
+    const solutionQuery = useQuery({
+        queryKey: ["/api/exercises", exerciseId, "solution"],
+        queryFn: () => apiClient<SolutionResponse>(`/exercises/${exerciseId}/solution`),
+        enabled: Boolean(exerciseId && isAuthenticated && solutionUnlocked && showSolution),
+        retry: false,
+        staleTime: 5 * 60 * 1000,
     });
 
     const exerciseBaseCode = exerciseQuery.data ? normalizeCode(exerciseQuery.data.initialCode) : emptyCode();
@@ -424,6 +450,7 @@ export default function ExerciseDetailPage() {
                     text: truncateText(review.feedback),
                     suggestions: normalizeSuggestions(review.suggestions),
                 });
+                void queryClient.invalidateQueries({ queryKey: ["/api/progress", exerciseId] });
                 return;
             }
 
@@ -648,6 +675,50 @@ export default function ExerciseDetailPage() {
                                     </ul>
                                 </div>
                             ) : null}
+
+                            {showSolution ? (
+                                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+                                    <p className="text-sm font-semibold text-amber-900">Correcao oficial:</p>
+                                    {solutionQuery.isLoading ? (
+                                        <p className="mt-2 text-sm text-amber-800">Carregando solucao...</p>
+                                    ) : solutionQuery.isError ? (
+                                        <p className="mt-2 text-sm text-amber-800">
+                                            Nao foi possivel carregar a solucao. Tente novamente.
+                                        </p>
+                                    ) : solutionQuery.data?.solutionCode ? (
+                                        <div className="mt-2 space-y-3">
+                                            {solutionQuery.data.solutionCode.html.trim() ? (
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">HTML</p>
+                                                    <pre className="mt-1 overflow-x-auto rounded bg-white/80 p-2 text-xs text-amber-950 whitespace-pre-wrap">
+                                                        {solutionQuery.data.solutionCode.html}
+                                                    </pre>
+                                                </div>
+                                            ) : null}
+                                            {solutionQuery.data.solutionCode.css.trim() ? (
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">CSS</p>
+                                                    <pre className="mt-1 overflow-x-auto rounded bg-white/80 p-2 text-xs text-amber-950 whitespace-pre-wrap">
+                                                        {solutionQuery.data.solutionCode.css}
+                                                    </pre>
+                                                </div>
+                                            ) : null}
+                                            {solutionQuery.data.solutionCode.javascript.trim() ? (
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">JavaScript</p>
+                                                    <pre className="mt-1 overflow-x-auto rounded bg-white/80 p-2 text-xs text-amber-950 whitespace-pre-wrap">
+                                                        {solutionQuery.data.solutionCode.javascript}
+                                                    </pre>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    ) : (
+                                        <p className="mt-2 text-sm text-amber-800">
+                                            Este exercicio ainda nao possui solucao oficial cadastrada.
+                                        </p>
+                                    )}
+                                </div>
+                            ) : null}
                         </div>
 
                         {progressQuery.data?.completed ? (
@@ -664,13 +735,40 @@ export default function ExerciseDetailPage() {
                             </div>
                         ) : null}
 
-                        <div className="mt-3 flex justify-end">
+                        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                            {!solutionUnlocked && !progressQuery.data?.completed ? (
+                                <span className="mr-auto text-xs text-gray-600">
+                                    Correcao libera apos {SOLUTION_UNLOCK_AFTER} tentativas incorretas
+                                    {incorrectAttempts > 0
+                                        ? ` (${incorrectAttempts}/${SOLUTION_UNLOCK_AFTER})`
+                                        : ""}
+                                </span>
+                            ) : null}
                             <button
                                 type="button"
                                 onClick={() => setShowTips((current) => !current)}
                                 className="rpg-button inline-flex items-center px-4 py-2 text-sm"
                             >
                                 Dicas
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!solutionUnlocked) {
+                                        return;
+                                    }
+                                    setShowSolution((current) => !current);
+                                }}
+                                disabled={!solutionUnlocked}
+                                title={
+                                    solutionUnlocked
+                                        ? "Mostrar ou ocultar a correcao oficial"
+                                        : `Envie ${SOLUTION_UNLOCK_AFTER} tentativas incorretas para liberar`
+                                }
+                                className="rpg-button inline-flex items-center px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45"
+                            >
+                                <Eye className="mr-2 h-4 w-4" />
+                                {showSolution ? "Ocultar correcao" : "Correcao"}
                             </button>
                         </div>
                     </section>

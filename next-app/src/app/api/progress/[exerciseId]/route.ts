@@ -25,6 +25,7 @@ export async function GET(request: Request, { params }: Params) {
             userCode: { html: "", css: "", javascript: "" },
             pointsEarned: 0,
             attempts: 0,
+            incorrectAttempts: 0,
         });
 
         return NextResponse.json(progress);

@@ -39,6 +39,8 @@ export interface UserProgress {
     completed: boolean;
     userCode: CodeTriplet;
     attempts: number;
+    /** Envios incorretos para correção (libera solution após N). */
+    incorrectAttempts?: number;
     pointsEarned: number;
     completedAt?: string | null;
     createdAt?: string;
