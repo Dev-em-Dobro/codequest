@@ -160,7 +160,8 @@ export async function POST(request: Request, { params }: Params) {
                 score,
             }),
         );
-    } catch {
+    } catch (error) {
+        console.error("ai-review failed:", error);
         return NextResponse.json(
             {
                 feedback: "Desculpe, não foi possível analisar seu código no momento.",

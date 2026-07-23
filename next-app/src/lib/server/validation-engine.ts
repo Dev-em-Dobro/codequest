@@ -81,6 +81,48 @@ export const DEFAULT_VALIDATION_RULES: Record<string, ValidationRule[]> = {
             message: "Use 'justify-content' para alinhar os elementos na horizontal.",
         },
     ],
+    "css-seletores-classes-ids": [
+        {
+            type: "contains",
+            rule: "Eu sou um parágrafo",
+            message: "Crie o parágrafo sem atributos com o texto pedido.",
+        },
+        {
+            type: "contains",
+            rule: 'class="destaque"',
+            message: "Crie o parágrafo com a classe destaque.",
+        },
+        {
+            type: "contains",
+            rule: 'id="unico"',
+            message: "Crie o parágrafo com o id unico.",
+        },
+        {
+            type: "contains",
+            rule: "color: blue",
+            message: "O seletor de tag p deve definir a cor azul.",
+        },
+        {
+            type: "contains",
+            rule: ".destaque",
+            message: "Use o seletor de classe .destaque no CSS.",
+        },
+        {
+            type: "contains",
+            rule: "color: green",
+            message: "O seletor .destaque deve definir a cor verde.",
+        },
+        {
+            type: "contains",
+            rule: "#unico",
+            message: "Use o seletor de id #unico no CSS.",
+        },
+        {
+            type: "contains",
+            rule: "color: red",
+            message: "O seletor #unico deve definir a cor vermelha.",
+        },
+    ],
 };
 
 function normalizeCssForMatch(css: string): string {
@@ -95,23 +137,24 @@ function normalizeContainsNeedle(rule: string): string {
         .replace(/\s+/g, " ");
 }
 
-/** class='x' e class="x" (e variações de espaço) devem equivaler. */
+/** class='x' / id='x' e variantes com aspas devem equivaler. */
 function targetContainsNeedle(target: string, needle: string): boolean {
     if (target.includes(needle) || target.includes(needle.replace(/\s+/g, ""))) {
         return true;
     }
 
-    const classAttr = needle.match(/^class\s*=\s*['"]([^'"]+)['"]$/i);
-    if (classAttr) {
-        const className = classAttr[1].toLowerCase();
-        const classPatterns = [
-            `class="${className}"`,
-            `class='${className}'`,
-            `class=${className}`,
-            `class = "${className}"`,
-            `class = '${className}'`,
+    const attrMatch = needle.match(/^(class|id)\s*=\s*['"]([^'"]+)['"]$/i);
+    if (attrMatch) {
+        const attr = attrMatch[1].toLowerCase();
+        const value = attrMatch[2].toLowerCase();
+        const patterns = [
+            `${attr}="${value}"`,
+            `${attr}='${value}'`,
+            `${attr}=${value}`,
+            `${attr} = "${value}"`,
+            `${attr} = '${value}'`,
         ];
-        return classPatterns.some((pattern) => target.includes(pattern));
+        return patterns.some((pattern) => target.includes(pattern));
     }
 
     return false;
@@ -244,6 +287,47 @@ export class ValidationEngine {
             // (ex.: html-css-*) quebrariam se olhassem só a categoria.
             const targetRaw = combined;
             const target = normalizeCssForMatch(targetRaw);
+
+            // Regras legadas (ex.: cssRule) ou malformadas não podem derrubar a API.
+            if (!rule || typeof rule.type !== "string") {
+                continue;
+            }
+
+            if (rule.type === "cssRule") {
+                const cssRule = rule as ValidationRule & {
+                    selector?: string;
+                    property?: string;
+                    value?: string;
+                };
+                const selector = String(cssRule.selector || "").toLowerCase().trim();
+                const property = String(cssRule.property || "").toLowerCase().trim();
+                const value = String(cssRule.value || "").toLowerCase().trim();
+                const message =
+                    rule.message ||
+                    `CSS deve aplicar ${property}: ${value} no seletor ${selector}.`;
+
+                if (!selector || !property || !value) {
+                    continue;
+                }
+
+                const hasSelector = target.includes(selector);
+                const hasDeclaration =
+                    target.includes(`${property}: ${value}`) ||
+                    target.includes(`${property}:${value}`);
+
+                if (!hasSelector || !hasDeclaration) {
+                    failures.push({
+                        rule: `${selector} ${property}: ${value}`,
+                        message,
+                    });
+                }
+                continue;
+            }
+
+            if (typeof rule.rule !== "string" || !rule.rule.trim()) {
+                continue;
+            }
+
             const needle = normalizeContainsNeedle(rule.rule);
 
             if (rule.type === "contains") {
