@@ -27,7 +27,7 @@ export async function GET(request: Request, { params }: Params) {
 
         if (!hasSolutionContent(exercise.solutionCode)) {
             return NextResponse.json(
-                { message: "Este exercicio ainda nao possui solucao oficial cadastrada." },
+                { message: "Este exercício ainda não possui solução oficial cadastrada." },
                 { status: 404 },
             );
         }
@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: Params) {
         if (!unlocked) {
             return NextResponse.json(
                 {
-                    message: `A solucao libera apos ${SOLUTION_UNLOCK_AFTER} tentativas incorretas.`,
+                    message: `A solução libera após ${SOLUTION_UNLOCK_AFTER} tentativas incorretas.`,
                     incorrectAttempts,
                     requiredAttempts: SOLUTION_UNLOCK_AFTER,
                     unlocked: false,

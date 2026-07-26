@@ -678,12 +678,12 @@ export default function ExerciseDetailPage() {
 
                             {showSolution ? (
                                 <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3">
-                                    <p className="text-sm font-semibold text-amber-900">Correcao oficial:</p>
+                                    <p className="text-sm font-semibold text-amber-900">Correção oficial:</p>
                                     {solutionQuery.isLoading ? (
-                                        <p className="mt-2 text-sm text-amber-800">Carregando solucao...</p>
+                                        <p className="mt-2 text-sm text-amber-800">Carregando solução...</p>
                                     ) : solutionQuery.isError ? (
                                         <p className="mt-2 text-sm text-amber-800">
-                                            Nao foi possivel carregar a solucao. Tente novamente.
+                                            Não foi possível carregar a solução. Tente novamente.
                                         </p>
                                     ) : solutionQuery.data?.solutionCode ? (
                                         <div className="mt-2 space-y-3">
@@ -714,7 +714,7 @@ export default function ExerciseDetailPage() {
                                         </div>
                                     ) : (
                                         <p className="mt-2 text-sm text-amber-800">
-                                            Este exercicio ainda nao possui solucao oficial cadastrada.
+                                            Este exercício ainda não possui solução oficial cadastrada.
                                         </p>
                                     )}
                                 </div>
@@ -738,7 +738,7 @@ export default function ExerciseDetailPage() {
                         <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                             {!solutionUnlocked && !progressQuery.data?.completed ? (
                                 <span className="mr-auto text-xs text-gray-600">
-                                    Correcao libera apos {SOLUTION_UNLOCK_AFTER} tentativas incorretas
+                                    Correção libera após {SOLUTION_UNLOCK_AFTER} tentativas incorretas
                                     {incorrectAttempts > 0
                                         ? ` (${incorrectAttempts}/${SOLUTION_UNLOCK_AFTER})`
                                         : ""}
@@ -762,13 +762,13 @@ export default function ExerciseDetailPage() {
                                 disabled={!solutionUnlocked}
                                 title={
                                     solutionUnlocked
-                                        ? "Mostrar ou ocultar a correcao oficial"
+                                        ? "Mostrar ou ocultar a correção oficial"
                                         : `Envie ${SOLUTION_UNLOCK_AFTER} tentativas incorretas para liberar`
                                 }
                                 className="rpg-button inline-flex items-center px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45"
                             >
                                 <Eye className="mr-2 h-4 w-4" />
-                                {showSolution ? "Ocultar correcao" : "Correcao"}
+                                {showSolution ? "Ocultar correção" : "Correção"}
                             </button>
                         </div>
                     </section>
@@ -821,7 +821,7 @@ export default function ExerciseDetailPage() {
                                         <Sparkles className="mr-2 h-4 w-4" />
                                         {aiReviewMutation.isPending || completeMutation.isPending
                                             ? "Analisando..."
-                                            : "Enviar para correcao"}
+                                            : "Enviar para correção"}
                                     </button>
 
                                     {isJavaScriptExercise ? (

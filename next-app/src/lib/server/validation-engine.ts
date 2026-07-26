@@ -123,10 +123,181 @@ export const DEFAULT_VALIDATION_RULES: Record<string, ValidationRule[]> = {
             message: "O seletor #unico deve definir a cor vermelha.",
         },
     ],
+    "html-tags-essenciais-imagem": [
+        {
+            type: "contains",
+            rule: "<img",
+            message: "Use a tag <img> para inserir a imagem",
+        },
+        {
+            type: "contains",
+            rule: 'src="https://www.exemplo.com/imagem.jpg"',
+            message: "O atributo src deve ser https://www.exemplo.com/imagem.jpg",
+        },
+        {
+            type: "contains",
+            rule: 'alt="Minha Imagem"',
+            message: 'O atributo alt deve ser "Minha Imagem"',
+        },
+    ],
+    "css-grid-template-columns-rows-gap": [
+        {
+            type: "contains",
+            rule: "display: grid",
+            message: "O container deve usar display: grid",
+        },
+        {
+            type: "contains",
+            rule: "grid-template-columns: 1fr 1fr 1fr",
+            message: "Deve definir 3 colunas iguais com 1fr (ou repeat(3, 1fr))",
+        },
+        {
+            type: "contains",
+            rule: "grid-template-rows: 150px 150px",
+            message: "Deve definir 2 linhas de 150px (ou repeat(2, 150px))",
+        },
+        {
+            type: "contains",
+            rule: "gap: 20px",
+            message: "Deve usar um gap de 20px entre os elementos",
+        },
+    ],
+    "grid-autofill-autofit": [
+        {
+            type: "contains",
+            rule: "display: grid",
+            message: "O container deve ter display: grid",
+        },
+        {
+            type: "contains",
+            rule: "repeat(auto-fit, minmax(200px, 1fr))",
+            message: "Use repeat com auto-fit ou auto-fill e minmax(200px, 1fr)",
+        },
+        {
+            type: "contains",
+            rule: 'class="card"',
+            message: "Cada card deve ter a classe card no HTML",
+        },
+        {
+            type: "contains",
+            rule: "<img",
+            message: "Cada card deve incluir uma imagem",
+        },
+        {
+            type: "contains",
+            rule: "<h2",
+            message: "Cada card deve incluir um título (h2)",
+        },
+        {
+            type: "contains",
+            rule: "<p",
+            message: "Cada card deve incluir uma descrição (p)",
+        },
+    ],
+    "css-grid-basico": [
+        {
+            type: "contains",
+            rule: "display: grid",
+            message: "O container deve usar display: grid",
+        },
+        {
+            type: "contains",
+            rule: "grid-template-columns: 1fr 1fr 1fr",
+            message: "Defina 3 colunas iguais com 1fr (ou repeat(3, 1fr))",
+        },
+        {
+            type: "contains",
+            rule: "grid-template-rows: 1fr 1fr",
+            message: "Defina 2 linhas iguais com 1fr (ou repeat(2, 1fr))",
+        },
+        {
+            type: "contains",
+            rule: "gap: 10px",
+            message: "Use gap: 10px entre os itens",
+        },
+    ],
+    "css-grid-area": [
+        {
+            type: "contains",
+            rule: "display: grid",
+            message: "O container deve usar display: grid",
+        },
+        {
+            type: "contains",
+            rule: "grid-template-columns",
+            message: "Defina grid-template-columns para as 3 colunas",
+        },
+        {
+            type: "contains",
+            rule: "grid-template-rows",
+            message: "Defina grid-template-rows para as 3 linhas",
+        },
+        {
+            type: "contains",
+            rule: "grid-template-areas",
+            message: "Deve definir as áreas do grid usando grid-template-areas",
+        },
+        {
+            type: "contains",
+            rule: "grid-area: header",
+            message: "O header deve ser posicionado usando grid-area: header",
+        },
+        {
+            type: "contains",
+            rule: "grid-area: menu",
+            message: "O menu deve ser posicionado usando grid-area: menu",
+        },
+        {
+            type: "contains",
+            rule: "grid-area: content",
+            message: "O conteúdo deve ser posicionado usando grid-area: content",
+        },
+        {
+            type: "contains",
+            rule: "grid-area: footer",
+            message: "O footer deve ser posicionado usando grid-area: footer",
+        },
+    ],
 };
 
 function normalizeCssForMatch(css: string): string {
-    return css.toLowerCase().replace(/\s+/g, " ");
+    return css
+        .toLowerCase()
+        // HTML void tags: <img ... /> equivale a <img ...>
+        .replace(/\s*\/>/g, ">")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function compactCss(css: string): string {
+    return css
+        .toLowerCase()
+        .replace(/\s*\/>/g, ">")
+        .replace(/\s+/g, "");
+}
+
+/** Expande repeat(N, valor) para equivalência com valor repetido N vezes. */
+function expandCssRepeats(css: string): string {
+    let previous = "";
+    let current = css;
+    for (let i = 0; i < 5 && current !== previous; i += 1) {
+        previous = current;
+        current = current.replace(/repeat\(\s*(\d+)\s*,\s*([^)]+?)\)/gi, (match, count, value) => {
+            const times = Number.parseInt(String(count), 10);
+            if (!Number.isFinite(times) || times < 1 || times > 20) {
+                return match;
+            }
+            const token = String(value).trim();
+            return Array.from({ length: times }, () => token).join(" ");
+        });
+    }
+    return current;
+}
+
+function normalizeCssVariants(css: string): string[] {
+    const base = normalizeCssForMatch(css);
+    const expanded = normalizeCssForMatch(expandCssRepeats(base));
+    return [...new Set([base, expanded, compactCss(base), compactCss(expanded)])];
 }
 
 /** Regras no banco às vezes vêm escapadas como regex (ex.: "\\*") — contains é busca literal. */
@@ -134,13 +305,49 @@ function normalizeContainsNeedle(rule: string): string {
     return rule
         .replace(/\\([.*+?^${}()|[\]\\])/g, "$1")
         .toLowerCase()
-        .replace(/\s+/g, " ");
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function needleVariants(needle: string): string[] {
+    const base = normalizeContainsNeedle(needle);
+    const compact = compactCss(base);
+    const variants = new Set<string>([base, compact]);
+
+    // auto-fit e auto-fill são equivalentes para o enunciado típico de grid responsivo.
+    if (compact.includes("auto-fit")) {
+        variants.add(base.replace(/auto-fit/g, "auto-fill"));
+        variants.add(compact.replace(/auto-fit/g, "auto-fill"));
+    }
+    if (compact.includes("auto-fill")) {
+        variants.add(base.replace(/auto-fill/g, "auto-fit"));
+        variants.add(compact.replace(/auto-fill/g, "auto-fit"));
+    }
+
+    if (base.endsWith(";")) {
+        const without = base.slice(0, -1).trim();
+        variants.add(without);
+        variants.add(compactCss(without));
+    }
+
+    return [...variants];
 }
 
 /** class='x' / id='x' e variantes com aspas devem equivaler. */
 function targetContainsNeedle(target: string, needle: string): boolean {
-    if (target.includes(needle) || target.includes(needle.replace(/\s+/g, ""))) {
-        return true;
+    const targets = normalizeCssVariants(target);
+    const needles = needleVariants(needle);
+
+    for (const candidateTarget of targets) {
+        for (const candidateNeedle of needles) {
+            if (!candidateNeedle) continue;
+            if (candidateTarget.includes(candidateNeedle)) {
+                return true;
+            }
+            if (candidateTarget.includes(compactCss(candidateNeedle))) {
+                return true;
+            }
+        }
     }
 
     const attrMatch = needle.match(/^(class|id)\s*=\s*['"]([^'"]+)['"]$/i);
@@ -154,7 +361,9 @@ function targetContainsNeedle(target: string, needle: string): boolean {
             `${attr} = "${value}"`,
             `${attr} = '${value}'`,
         ];
-        return patterns.some((pattern) => target.includes(pattern));
+        return patterns.some((pattern) =>
+            targets.some((item) => item.includes(pattern) || item.includes(compactCss(pattern))),
+        );
     }
 
     return false;
@@ -310,10 +519,10 @@ export class ValidationEngine {
                     continue;
                 }
 
-                const hasSelector = target.includes(selector);
+                const hasSelector = targetContainsNeedle(target, selector);
                 const hasDeclaration =
-                    target.includes(`${property}: ${value}`) ||
-                    target.includes(`${property}:${value}`);
+                    targetContainsNeedle(target, `${property}: ${value}`) ||
+                    targetContainsNeedle(target, `${property}:${value}`);
 
                 if (!hasSelector || !hasDeclaration) {
                     failures.push({
