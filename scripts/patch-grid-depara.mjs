@@ -71,11 +71,11 @@ const PATCHES = {
     },
     "grid-autofill-autofit": {
         instructions:
-            "Crie um container de grid com vários cards de produtos (pelo menos 6). Use grid-template-columns com repeat(auto-fit, minmax(200px, 1fr)) ou repeat(auto-fill, minmax(200px, 1fr)) para que os cards se ajustem ao tamanho da tela. Cada card deve usar a classe card e ter um título, uma imagem e uma descrição.",
+            "Crie um container com display: grid e pelo menos 6 cards de produtos no HTML. No CSS, use grid-template-columns com repeat(auto-fit, minmax(200px, 1fr)) ou repeat(auto-fill, minmax(200px, 1fr)) para que os cards se ajustem ao tamanho da tela. Cada card deve ser um elemento com class=\"card\" e, dentro dele, um título em <h2>, uma imagem em <img> e uma descrição em <p>.",
         hints: [
             "Use display: grid no container.",
             "Use repeat com auto-fit ou auto-fill e minmax(200px, 1fr).",
-            "Cada item deve ter class=\"card\" (e o seletor .card no CSS ajuda a estilizar).",
+            "Cada card no HTML precisa de class=\"card\", com <h2>, <img> e <p> dentro.",
             "Opcional: adicione gap entre os cards para espaçamento.",
         ],
         validationRules: [
