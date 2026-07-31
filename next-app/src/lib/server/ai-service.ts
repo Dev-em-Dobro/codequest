@@ -13,12 +13,14 @@ function sanitizeInput(input: string): string {
         return "";
     }
 
+    // NÃO remover aspas, crases nem <>. Em JS isso apaga operadores (>=, <=),
+    // template literals (``) e strings do enunciado — a IA alucina o requisito.
     return input
-        .replace(/[<>"'`]/g, "")
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
         .replace(/\{[^}]*system[^}]*\}/gi, "")
         .replace(/\{[^}]*role[^}]*\}/gi, "")
-        .replace(/```[^`]*```/g, "")
-        .substring(0, 2000)
+        .replace(/\bignore\s+(all\s+|any\s+)?(previous|above|prior)\s+instructions\b/gi, "[filtered]")
+        .substring(0, 4000)
         .trim();
 }
 
@@ -28,12 +30,11 @@ function sanitizeCode(code: string): string {
     }
 
     // Bloqueia só o construtor Function(...)/new Function — NÃO a keyword "function".
-    // O flag "i" em Function quebrava forEach(function () { ... }) e similares.
+    // Não reescreve setTimeout/setInterval: são APIs legítimas em exercícios.
     return code
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
         .replace(/(?<![\w$])eval\s*\(/gi, "EVAL_BLOCKED(")
         .replace(/(?<![\w$])Function\s*\(/g, "FUNCTION_BLOCKED(")
-        .replace(/(?<![\w$])setTimeout\s*\(/g, "SETTIMEOUT_BLOCKED(")
-        .replace(/(?<![\w$])setInterval\s*\(/g, "SETINTERVAL_BLOCKED(")
         .substring(0, 5000)
         .trim();
 }
@@ -218,6 +219,7 @@ export async function reviewExerciseByInstructions(params: {
     exerciseTitle: string;
     exerciseDescription?: string;
     exerciseInstructions: string;
+    category?: string;
 }): Promise<CodeReviewResult> {
     if (!openai) {
         return {
@@ -235,6 +237,7 @@ export async function reviewExerciseByInstructions(params: {
         const sanitizedTitle = sanitizeInput(params.exerciseTitle);
         const sanitizedDescription = sanitizeInput(params.exerciseDescription || "");
         const sanitizedInstructions = sanitizeInput(params.exerciseInstructions);
+        const isJavaScript = (params.category || "").toLowerCase() === "javascript";
 
         const codeToReview = [
             sanitizedHtml && `HTML:\n${sanitizedHtml}`,
@@ -243,6 +246,21 @@ export async function reviewExerciseByInstructions(params: {
         ]
             .filter(Boolean)
             .join("\n\n");
+
+        const jsExtraRules = isJavaScript
+            ? `
+REGRAS ESPECÍFICAS DE JAVASCRIPT:
+- Avalie SOMENTE o que está escrito nas INSTRUÇÕES. Ignore dicas internas, solução do banco ou estilo pessoal.
+- Aceite const, let e var como equivalentes, salvo se o enunciado exigir um específico.
+- Aceite function nomeada, function expression e arrow function como equivalentes, salvo se o enunciado exigir um formato (ex.: "arrow function" ou "função nomeada").
+- Aceite aspas simples, aspas duplas e template literals quando o enunciado não exigir um formato.
+- Nomes de variáveis/parâmetros só são obrigatórios se o enunciado nomear explicitamente (ex.: array numeros, variável total).
+- NÃO exija try/catch, tipagem, comentários, HTML, DOM ou CSS se o enunciado não pedir.
+- NÃO exija valores literais exatos (números, nomes de pessoas, textos de exemplo) se o enunciado permitir qualquer valor do tipo pedido.
+- Se o enunciado pedir console.log / alert / fetch / for / forEach / map / filter / reduce / find etc., verifique o uso conceitual — não a formatação idêntica à solução modelo.
+- Código sintaticamente válido que cumpre todos os pontos do enunciado = score 100 e isCorrect true.
+`
+            : "";
 
         const messages: ChatCompletionMessageParam[] = [
             {
@@ -260,7 +278,7 @@ FONTE ÚNICA DE VERDADE: as INSTRUÇÕES do exercício.
 - NÃO invente requisitos extras (não peça tipografia, layout ou cores além do enunciado).
 - Texto de título/parágrafo pode ser qualquer conteúdo razoável, salvo se o enunciado pedir texto exato.
 - NÃO mencione marcadores internos (FUNCTION_BLOCKED, EVAL_BLOCKED, etc.): se aparecerem, ignore — não são erro do aluno.
-
+${jsExtraRules}
 NOTA:
 - 100 e isCorrect true: atende TODOS os pontos do enunciado
 - 80-99: quase completo, falta detalhe pequeno do enunciado

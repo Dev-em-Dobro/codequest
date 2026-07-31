@@ -44,6 +44,23 @@ export const AI_REVIEW_EXERCISE_IDS = new Set<string>([
     "javascript-objetos-pessoa",
     "javascript-arrow-function",
     "javascript-funcao-com-retorno-soma",
+    "javascript-funcao-nomeada-saudar-usuario",
+    "javascript-condicionais-if-else",
+    "javascript-condicional-switch",
+    "javascript-loop-do-while",
+    "javascript-loop-for",
+    "javascript-loop-while",
+    "javascript-operador-not",
+    "javascript-operadores-matematicos",
+    "javascript-operadores-relacionais",
+    "javascript-operadores-logicos",
+    "javascript-template-literal",
+    "javascript-tipos-primitivos",
+    "javascript-variaveis-console",
+    "js-consumo-api-async-await",
+    "js-api-detalhes-usuario",
+    "js-api-posts",
+    "js-primeiro-alert",
 ]);
 
 /**

@@ -102,6 +102,7 @@ export async function POST(request: Request, { params }: Params) {
                 exerciseTitle: exercise.title,
                 exerciseDescription: exercise.description || "",
                 exerciseInstructions: exercise.instructions || "",
+                category: exercise.category,
             });
 
             const isCorrect = Boolean(review.isCorrect) && (review.score ?? 0) >= 100;
