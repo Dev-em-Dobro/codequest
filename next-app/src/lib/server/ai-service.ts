@@ -27,11 +27,13 @@ function sanitizeCode(code: string): string {
         return "";
     }
 
+    // Bloqueia só o construtor Function(...)/new Function — NÃO a keyword "function".
+    // O flag "i" em Function quebrava forEach(function () { ... }) e similares.
     return code
-        .replace(/eval\s*\(/gi, "EVAL_BLOCKED(")
-        .replace(/Function\s*\(/gi, "FUNCTION_BLOCKED(")
-        .replace(/setTimeout\s*\(/gi, "SETTIMEOUT_BLOCKED(")
-        .replace(/setInterval\s*\(/gi, "SETINTERVAL_BLOCKED(")
+        .replace(/(?<![\w$])eval\s*\(/gi, "EVAL_BLOCKED(")
+        .replace(/(?<![\w$])Function\s*\(/g, "FUNCTION_BLOCKED(")
+        .replace(/(?<![\w$])setTimeout\s*\(/g, "SETTIMEOUT_BLOCKED(")
+        .replace(/(?<![\w$])setInterval\s*\(/g, "SETINTERVAL_BLOCKED(")
         .substring(0, 5000)
         .trim();
 }
@@ -254,8 +256,10 @@ FONTE ÚNICA DE VERDADE: as INSTRUÇÕES do exercício.
 - Aceite class="x" e class='x' como equivalentes.
 - Aceite font-weight: bold e bolder para "negrito".
 - Aceite seletores/formatos CSS equivalentes (espaços, ordem de propriedades).
+- Em JavaScript, aceite function tradicional e arrow function como equivalentes quando o enunciado pedir uma função.
 - NÃO invente requisitos extras (não peça tipografia, layout ou cores além do enunciado).
 - Texto de título/parágrafo pode ser qualquer conteúdo razoável, salvo se o enunciado pedir texto exato.
+- NÃO mencione marcadores internos (FUNCTION_BLOCKED, EVAL_BLOCKED, etc.): se aparecerem, ignore — não são erro do aluno.
 
 NOTA:
 - 100 e isCorrect true: atende TODOS os pontos do enunciado
