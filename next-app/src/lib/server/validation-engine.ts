@@ -84,6 +84,26 @@ export function getExerciseReviewMode(exercise: Exercise): "deterministic" | "ai
     return "deterministic";
 }
 
+/**
+ * Parse estático do JS do aluno. Retorna a mensagem de erro ou null se a sintaxe for válida.
+ * Usado como gate obrigatório antes da correção por IA (a IA não deve aprovar código inválido).
+ */
+export function getJavaScriptSyntaxError(javascript: string): string | null {
+    const code = javascript.trim();
+    if (!code) {
+        return null;
+    }
+
+    try {
+        // new Function só faz parse — não executa o corpo.
+        new Function(code);
+        return null;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return message || "Erro de sintaxe no JavaScript.";
+    }
+}
+
 /** Regras padrão alinhadas ao enunciado quando o exercício ainda não tem validationRules no banco. */
 export const DEFAULT_VALIDATION_RULES: Record<string, ValidationRule[]> = {
     "css-flexbox-basico": [
@@ -805,14 +825,12 @@ export class ValidationEngine {
             };
         }
 
-        let syntaxError: unknown = null;
+        const syntaxErrorMessage = getJavaScriptSyntaxError(javascript);
+        const syntaxError = syntaxErrorMessage ? new Error(syntaxErrorMessage) : null;
         let capturedOutput = "JavaScript validation completed (static analysis only)";
 
-        try {
-            new Function(javascript);
-        } catch (error) {
-            syntaxError = error;
-            capturedOutput = `SYNTAX ERROR: ${(error as Error).message}`;
+        if (syntaxErrorMessage) {
+            capturedOutput = `SYNTAX ERROR: ${syntaxErrorMessage}`;
         }
 
         if (exercise.id === "js-primeiro-alert") {

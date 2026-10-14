@@ -258,6 +258,7 @@ REGRAS ESPECÍFICAS DE JAVASCRIPT:
 - NÃO exija try/catch, tipagem, comentários, HTML, DOM ou CSS se o enunciado não pedir.
 - NÃO exija valores literais exatos (números, nomes de pessoas, textos de exemplo) se o enunciado permitir qualquer valor do tipo pedido.
 - Se o enunciado pedir console.log / alert / fetch / for / forEach / map / filter / reduce / find etc., verifique o uso conceitual — não a formatação idêntica à solução modelo.
+- Código com erro de sintaxe (ex.: console.log sem parênteses, operador fora do lugar) NUNCA pode ter isCorrect true — score baixo e explique o erro.
 - Código sintaticamente válido que cumpre todos os pontos do enunciado = score 100 e isCorrect true.
 `
             : "";

@@ -7,7 +7,7 @@ import {
     reviewExerciseByInstructions,
 } from "@/lib/server/deps";
 import { SOLUTION_UNLOCK_AFTER } from "@/lib/server/exercise-public";
-import { getExerciseReviewMode } from "@/lib/server/validation-engine";
+import { getExerciseReviewMode, getJavaScriptSyntaxError } from "@/lib/server/validation-engine";
 import { parseJsonBody } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
 import type { CodeTriplet, UserProgress } from "@/lib/server/storage-types";
@@ -95,6 +95,21 @@ export async function POST(request: Request, { params }: Params) {
 
         // Enunciado aberto (cores/textos livres): IA julga só pelo enunciado.
         if (getExerciseReviewMode(exercise) === "ai") {
+            // Gate determinístico: a IA não pode marcar como correto código JS inválido.
+            const jsSyntaxError = getJavaScriptSyntaxError(userCode.javascript);
+            if (jsSyntaxError) {
+                return NextResponse.json(
+                    await buildFailurePayload({
+                        feedback: `Erro de sintaxe no JavaScript: ${jsSyntaxError}`,
+                        suggestions: [
+                            "Confira parênteses, chaves e ponto e vírgula.",
+                            "Funções como console.log precisam de parênteses: console.log(...).",
+                        ],
+                        score: 20,
+                    }),
+                );
+            }
+
             const review = await reviewExerciseByInstructions({
                 htmlCode: userCode.html,
                 cssCode: userCode.css,
