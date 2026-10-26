@@ -147,7 +147,7 @@ Escreva feedback e sugestões alinhados APENAS às falhas acima.`,
         ];
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4.1-nano",
+            model: "gpt-4.1-mini",
             messages,
             response_format: { type: "json_object" },
             temperature: 0,
@@ -314,7 +314,7 @@ Avalie se o código atende ao enunciado. Não compare com uma solução secreta 
         ];
 
         const response = await openai.chat.completions.create({
-            model: "gpt-4.1-nano",
+            model: "gpt-4.1-mini",
             messages,
             response_format: { type: "json_object" },
             temperature: 0,
