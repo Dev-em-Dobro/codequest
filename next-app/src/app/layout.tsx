@@ -3,7 +3,6 @@ import { Cinzel, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Footer } from "@/components/layout/footer";
-import { BlackPopup } from "@/components/black-popup";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -35,7 +34,6 @@ export default function RootLayout({
         <Providers>
           <div className="flex flex-1 flex-col">{children}</div>
           <Footer />
-          <BlackPopup />
         </Providers>
       </body>
     </html>
