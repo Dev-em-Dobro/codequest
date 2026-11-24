@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
+import { unauthorized } from "@/lib/server/auth";
+import { getCurrentUserId } from "@/lib/server/current-user";
 import { storage } from "@/lib/server/deps";
 import {
     SOLUTION_UNLOCK_AFTER,
@@ -13,7 +14,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, { params }: Params) {
     try {
-        const userId = getCurrentUserId(request);
+        const userId = await getCurrentUserId(request);
         if (!userId) {
             return unauthorized();
         }

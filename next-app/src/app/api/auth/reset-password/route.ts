@@ -64,6 +64,8 @@ export async function POST(request: Request) {
         const passwordHash = await hashPassword(password);
         await storage.setUserPasswordHash(user.id, passwordHash);
         await storage.clearPasswordResetToken(user.id);
+        // Senha nova derruba as sessões abertas (ex.: alguém que tinha acesso à conta).
+        await storage.deleteUserSessions(user.id);
 
         return NextResponse.json({ message: "Senha redefinida com sucesso." });
     } catch (error) {

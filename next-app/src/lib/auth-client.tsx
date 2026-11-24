@@ -44,6 +44,9 @@ type AuthContextValue = {
     signUp: (credentials: SignUpCredentials) => Promise<void>;
     signOut: () => Promise<void>;
     refreshSession: () => Promise<void>;
+    /** Entra com um link de acesso gerado por um admin (/auth/link?token=...). */
+    signInWithLoginLink: (token: string) => Promise<void>;
+    /** Atualiza os dados do usuário logado (não mexe no token de sessão). */
     setUser: (user: AuthUser | null) => void;
 };
 
@@ -63,9 +66,21 @@ type SessionResponse = {
 };
 
 type SignInUpResponse = {
+    /** Token opaco da sessão (não é o id do usuário). */
     sessionId?: unknown;
     user?: SessionResponse["user"];
 };
+
+/** Erro de autenticação que carrega o `code` devolvido pela API (ex.: NEEDS_PASSWORD_RESET). */
+export class AuthRequestError extends Error {
+    readonly code?: string;
+
+    constructor(message: string, code?: string) {
+        super(message);
+        this.name = "AuthRequestError";
+        this.code = code;
+    }
+}
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -82,8 +97,8 @@ function asNumber(value: unknown, fallback = 0): number {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function normalizeUser(rawUser: SessionResponse["user"] | undefined, fallbackId?: string): AuthUser | null {
-    const id = asString(rawUser?.id, fallbackId ?? "");
+function normalizeUser(rawUser: SessionResponse["user"] | undefined): AuthUser | null {
+    const id = asString(rawUser?.id);
     if (!id) {
         return null;
     }
@@ -104,14 +119,26 @@ function normalizeUser(rawUser: SessionResponse["user"] | undefined, fallbackId?
     };
 }
 
-function persistSession(nextUser: AuthUser | null) {
+/** Token da sessão atual, para mandar como `Authorization: Bearer`. */
+export function getStoredSessionToken(): string | null {
+    if (globalThis.window === undefined) {
+        return null;
+    }
+
+    return globalThis.localStorage.getItem(STORAGE_SESSION_KEY);
+}
+
+/** Salva o usuário; o token só é trocado quando um novo é passado (login). */
+function persistSession(nextUser: AuthUser | null, sessionToken?: string) {
     if (globalThis.window === undefined) {
         return;
     }
 
     if (nextUser) {
         globalThis.localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(nextUser));
-        globalThis.localStorage.setItem(STORAGE_SESSION_KEY, nextUser.id);
+        if (sessionToken) {
+            globalThis.localStorage.setItem(STORAGE_SESSION_KEY, sessionToken);
+        }
         return;
     }
 
@@ -149,7 +176,7 @@ function readStoredSession(): { user: AuthUser | null; sessionId: string | null 
                 github: parsed.github,
                 linkedin: parsed.linkedin,
             },
-            sessionId: storedSessionId ?? parsed.id,
+            sessionId: storedSessionId,
         };
     } catch {
         return { user: null, sessionId: storedSessionId };
@@ -169,7 +196,7 @@ async function fetchSession(sessionId: string): Promise<AuthUser | null> {
     }
 
     const data = (await response.json()) as SessionResponse;
-    return normalizeUser(data.user, sessionId);
+    return normalizeUser(data.user);
 }
 
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
@@ -179,6 +206,18 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const setUser = useCallback((nextUser: AuthUser | null) => {
         setAuthUser(nextUser);
         persistSession(nextUser);
+    }, []);
+
+    /** Guarda usuário + token devolvidos por sign-in, sign-up ou link de acesso. */
+    const startSession = useCallback((payload: SignInUpResponse) => {
+        const sessionToken = asString(payload.sessionId);
+        const normalizedUser = normalizeUser(payload.user);
+        if (!sessionToken || !normalizedUser) {
+            throw new Error("Nao foi possivel iniciar a sessao");
+        }
+
+        setAuthUser(normalizedUser);
+        persistSession(normalizedUser, sessionToken);
     }, []);
 
     const clearSession = useCallback(() => {
@@ -233,7 +272,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         (globalThis as { __authClient?: { getState: () => { user: AuthUser | null; sessionId: string | null; isLoading: boolean } } }).__authClient = {
             getState: () => ({
                 user: authUser,
-                sessionId: authUser?.id ?? null,
+                sessionId: authUser ? getStoredSessionToken() : null,
                 isLoading,
             }),
         };
@@ -250,19 +289,14 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
                 credentials: "include",
             });
 
-            const payload = (await response.json()) as SignInUpResponse & { message?: string };
+            const payload = (await response.json()) as SignInUpResponse & { message?: string; code?: string };
             if (!response.ok) {
-                throw new Error(payload.message || "Falha no login");
+                throw new AuthRequestError(payload.message || "Falha no login", payload.code);
             }
 
-            const normalizedUser = normalizeUser(payload.user, asString(payload.sessionId));
-            if (!normalizedUser) {
-                throw new Error("Nao foi possivel iniciar a sessao");
-            }
-
-            setUser(normalizedUser);
+            startSession(payload);
         },
-        [setUser],
+        [startSession],
     );
 
     const signUp = useCallback(
@@ -281,19 +315,37 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
                 throw new Error(payload.message || "Falha no cadastro");
             }
 
-            const normalizedUser = normalizeUser(payload.user, asString(payload.sessionId));
-            if (!normalizedUser) {
-                throw new Error("Nao foi possivel criar a sessao");
+            startSession(payload);
+        },
+        [startSession],
+    );
+
+    const signInWithLoginLink = useCallback(
+        async (token: string) => {
+            const response = await fetch("/api/auth/login-link", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ token }),
+                credentials: "include",
+            });
+
+            const payload = (await response.json()) as SignInUpResponse & { message?: string };
+            if (!response.ok) {
+                throw new Error(payload.message || "Link de acesso inválido");
             }
 
-            setUser(normalizedUser);
+            startSession(payload);
         },
-        [setUser],
+        [startSession],
     );
 
     const signOut = useCallback(async () => {
+        const sessionToken = getStoredSessionToken();
         await fetch("/api/auth/sign-out", {
             method: "POST",
+            headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : undefined,
             credentials: "include",
         });
 
@@ -309,9 +361,10 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
             signUp,
             signOut,
             refreshSession,
+            signInWithLoginLink,
             setUser,
         }),
-        [authUser, isLoading, signIn, signUp, signOut, refreshSession, setUser],
+        [authUser, isLoading, signIn, signUp, signOut, refreshSession, signInWithLoginLink, setUser],
     );
 
     return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 export const SESSION_COOKIE_NAME = "codequest_session_id";
 
-/** Sessão expira após 7 dias (cookie httpOnly). */
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+/** Sessão expira após 30 dias (cookie httpOnly + linha em user_sessions). */
+export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_MAX_AGE_SECONDS = SESSION_TTL_MS / 1000;
 
 function parseSessionIdFromCookie(cookieHeader: string | null): string | null {
     if (!cookieHeader) {
@@ -24,7 +25,11 @@ function parseSessionIdFromCookie(cookieHeader: string | null): string | null {
     return value || null;
 }
 
-export function getCurrentUserId(request: Request): string | null {
+/**
+ * Lê o token de sessão (opaco) do header Authorization ou do cookie.
+ * Não valida nada: use getCurrentUserId (current-user.ts) para resolver o usuário.
+ */
+export function getSessionToken(request: Request): string | null {
     const authHeader = request.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ")) {
         const token = authHeader.replace("Bearer ", "").trim();
@@ -36,8 +41,8 @@ export function getCurrentUserId(request: Request): string | null {
     return parseSessionIdFromCookie(request.headers.get("cookie"));
 }
 
-export function setSessionCookie(response: NextResponse, sessionId: string) {
-    response.cookies.set(SESSION_COOKIE_NAME, sessionId, {
+export function setSessionCookie(response: NextResponse, sessionToken: string) {
+    response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",

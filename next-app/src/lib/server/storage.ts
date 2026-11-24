@@ -31,6 +31,12 @@ export interface IStorage {
     setPasswordResetToken(userId: string, tokenHash: string, expiresAt: string): Promise<void>;
     findUserByPasswordResetToken(token: string): Promise<User | undefined>;
     clearPasswordResetToken(userId: string): Promise<void>;
+    createSession(userId: string, tokenHash: string, expiresAt: Date): Promise<void>;
+    getSessionUserId(tokenHash: string): Promise<string | null>;
+    deleteSession(tokenHash: string): Promise<void>;
+    deleteUserSessions(userId: string): Promise<void>;
+    createLoginLink(userId: string, createdBy: string, tokenHash: string, expiresAt: Date): Promise<void>;
+    consumeLoginLink(tokenHash: string): Promise<string | null>;
     updateCode(userId: string, data: UpdateCode): Promise<UserProgress>;
     createFeedback(data: {
         feedback: string;
@@ -50,6 +56,41 @@ function ensureDatabaseConfigured(): void {
     if (!HAS_DATABASE_URL) {
         throw new Error("DATABASE_URL environment variable is required. Please set it in your .env file.");
     }
+}
+
+/**
+ * Tabelas de autenticação (sessões e links de login). Criadas sob demanda, uma vez por
+ * processo, para o deploy não depender de rodar migração antes.
+ */
+let authTablesReady: Promise<void> | null = null;
+
+function ensureAuthTables(): Promise<void> {
+    authTablesReady ??= (async () => {
+        await sql`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        token_hash text PRIMARY KEY,
+        user_id text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL
+      )
+    `;
+        await sql`CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx ON user_sessions (user_id)`;
+        await sql`
+      CREATE TABLE IF NOT EXISTS login_links (
+        token_hash text PRIMARY KEY,
+        user_id text NOT NULL,
+        created_by text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL,
+        used_at timestamptz
+      )
+    `;
+    })().catch((error: unknown) => {
+        authTablesReady = null;
+        throw error;
+    });
+
+    return authTablesReady;
 }
 
 type DbRow = {
@@ -360,6 +401,69 @@ export class NeonJsonStorage implements IStorage {
       SET data = ${asJson(merged)}
       WHERE id = ${rowId}
     `;
+    }
+
+    async createSession(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        const bareUserId = this.normalizeUserId(userId);
+
+        await sql`DELETE FROM user_sessions WHERE user_id = ${bareUserId} AND expires_at <= now()`;
+        await sql`
+      INSERT INTO user_sessions (token_hash, user_id, expires_at)
+      VALUES (${tokenHash}, ${bareUserId}, ${expiresAt})
+    `;
+    }
+
+    async getSessionUserId(tokenHash: string): Promise<string | null> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        const rows = await sql<{ user_id: string }[]>`
+      SELECT user_id
+      FROM user_sessions
+      WHERE token_hash = ${tokenHash}
+        AND expires_at > now()
+      LIMIT 1
+    `;
+
+        return rows[0]?.user_id ?? null;
+    }
+
+    async deleteSession(tokenHash: string): Promise<void> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        await sql`DELETE FROM user_sessions WHERE token_hash = ${tokenHash}`;
+    }
+
+    async deleteUserSessions(userId: string): Promise<void> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        await sql`DELETE FROM user_sessions WHERE user_id = ${this.normalizeUserId(userId)}`;
+    }
+
+    async createLoginLink(userId: string, createdBy: string, tokenHash: string, expiresAt: Date): Promise<void> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        await sql`
+      INSERT INTO login_links (token_hash, user_id, created_by, expires_at)
+      VALUES (${tokenHash}, ${this.normalizeUserId(userId)}, ${this.normalizeUserId(createdBy)}, ${expiresAt})
+    `;
+    }
+
+    /** Marca o link como usado e devolve o user_id. Atômico: o mesmo link não funciona duas vezes. */
+    async consumeLoginLink(tokenHash: string): Promise<string | null> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        const rows = await sql<{ user_id: string }[]>`
+      UPDATE login_links
+      SET used_at = now()
+      WHERE token_hash = ${tokenHash}
+        AND used_at IS NULL
+        AND expires_at > now()
+      RETURNING user_id
+    `;
+
+        return rows[0]?.user_id ?? null;
     }
 
     async createUser(user: InsertUser & { id?: string; passwordHash?: string }): Promise<User> {

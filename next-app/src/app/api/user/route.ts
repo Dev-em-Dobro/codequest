@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
+import { unauthorized } from "@/lib/server/auth";
+import { getCurrentUserId } from "@/lib/server/current-user";
 import { storage } from "@/lib/server/deps";
 import { internalError } from "@/lib/server/http";
 
@@ -7,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
     try {
-        const userId = getCurrentUserId(request);
+        const userId = await getCurrentUserId(request);
         if (!userId) {
             return unauthorized();
         }
