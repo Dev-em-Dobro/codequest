@@ -67,6 +67,17 @@ type SignInUpResponse = {
     user?: SessionResponse["user"];
 };
 
+/** Erro de autenticação que carrega o `code` devolvido pela API (ex.: NEEDS_PASSWORD_RESET). */
+export class AuthRequestError extends Error {
+    readonly code?: string;
+
+    constructor(message: string, code?: string) {
+        super(message);
+        this.name = "AuthRequestError";
+        this.code = code;
+    }
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function asString(value: unknown, fallback = ""): string {
@@ -250,9 +261,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
                 credentials: "include",
             });
 
-            const payload = (await response.json()) as SignInUpResponse & { message?: string };
+            const payload = (await response.json()) as SignInUpResponse & { message?: string; code?: string };
             if (!response.ok) {
-                throw new Error(payload.message || "Falha no login");
+                throw new AuthRequestError(payload.message || "Falha no login", payload.code);
             }
 
             const normalizedUser = normalizeUser(payload.user, asString(payload.sessionId));

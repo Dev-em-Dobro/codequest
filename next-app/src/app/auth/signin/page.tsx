@@ -5,18 +5,27 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { GraduationCap, KeyRound, Loader2 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { GlowCard } from "@/components/ui/spotlight-card";
-import { FieldError } from "@/components/auth/form-feedback";
+import { FieldError, FormFeedback } from "@/components/auth/form-feedback";
 import { AuthFormShell } from "@/components/auth/auth-form-shell";
 import { useAuth } from "@/hooks/use-auth";
+import { AuthRequestError } from "@/lib/auth-client";
 import { signInSchema, type SignInInput } from "@/lib/validations/auth";
+
+type CreatePasswordState = {
+    email: string;
+    status: "idle" | "sending" | "sent" | "error";
+    message: string | null;
+};
 
 export default function SignInPage() {
     const router = useRouter();
     const { signIn, isAuthenticated, isLoading: authLoading } = useAuth();
     const [error, setError] = useState<string | null>(null);
+    /** Conta antiga (migrada) sem senha: mostra o atalho para criar a senha. */
+    const [createPassword, setCreatePassword] = useState<CreatePasswordState | null>(null);
 
     const redirectPath = useMemo(() => {
         if (globalThis.window === undefined) {
@@ -51,6 +60,7 @@ export default function SignInPage() {
 
     const onSubmit = handleSubmit(async (values) => {
         setError(null);
+        setCreatePassword(null);
 
         try {
             await signIn({
@@ -60,6 +70,11 @@ export default function SignInPage() {
 
             router.replace(redirectPath);
         } catch (submitError: unknown) {
+            if (submitError instanceof AuthRequestError && submitError.code === "NEEDS_PASSWORD_RESET") {
+                setCreatePassword({ email: values.email.trim(), status: "idle", message: null });
+                return;
+            }
+
             let errorMessage = "Erro ao fazer login. Tente novamente.";
 
             if (submitError instanceof Error && submitError.message) {
@@ -86,6 +101,45 @@ export default function SignInPage() {
 
     const handleFirstAccess = () => {
         router.push("/auth/signup");
+    };
+
+    const handleSendCreatePasswordLink = async () => {
+        if (!createPassword || createPassword.status === "sending") {
+            return;
+        }
+
+        const { email } = createPassword;
+        setCreatePassword({ email, status: "sending", message: null });
+
+        try {
+            const response = await fetch("/api/auth/forgot-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+            });
+            const payload = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+
+            if (!response.ok) {
+                setCreatePassword({
+                    email,
+                    status: "error",
+                    message: payload.message || payload.error || "Não foi possível enviar o link agora. Tente novamente.",
+                });
+                return;
+            }
+
+            setCreatePassword({
+                email,
+                status: "sent",
+                message: `Link enviado para ${email}. Abra o e-mail (confira também o spam), crie sua senha e volte aqui para entrar.`,
+            });
+        } catch {
+            setCreatePassword({
+                email,
+                status: "error",
+                message: "Não foi possível enviar o link agora. Tente novamente em instantes.",
+            });
+        }
     };
 
     const isCredentialError =
@@ -143,6 +197,55 @@ export default function SignInPage() {
                             >
                                 {error}
                             </div>
+                        ) : null}
+
+                        {createPassword ? (
+                            <section
+                                role="status"
+                                className="rounded-xl border p-5"
+                                style={{
+                                    background: "linear-gradient(180deg, rgba(8, 13, 18, 0.95) 0%, rgba(9, 24, 18, 0.85) 100%)",
+                                    borderColor: "rgba(0, 229, 179, 0.6)",
+                                }}
+                            >
+                                <p className="text-lg font-semibold" style={{ color: "#00e5b3" }}>
+                                    Sua conta está aqui e seu progresso está salvo.
+                                </p>
+                                <p className="mt-2 text-base" style={{ color: "#fff6e9", opacity: 0.9 }}>
+                                    O CodeQuest passou a usar senha no login. Como sua conta é anterior a essa mudança,
+                                    você só precisa criar uma senha, uma única vez.
+                                </p>
+
+                                {createPassword.status === "sent" ? null : (
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSendCreatePasswordLink()}
+                                        disabled={createPassword.status === "sending"}
+                                        className="mt-4 inline-flex h-10 w-full items-center justify-center px-4 py-2 text-sm rpg-button"
+                                    >
+                                        {createPassword.status === "sending" ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Enviando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <KeyRound className="mr-2 h-4 w-4" />
+                                                Criar minha senha
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                {createPassword.message ? (
+                                    <div className="mt-4">
+                                        <FormFeedback
+                                            kind={createPassword.status === "sent" ? "success" : "error"}
+                                            message={createPassword.message}
+                                        />
+                                    </div>
+                                ) : null}
+                            </section>
                         ) : null}
 
                         <AuthFormShell onSubmit={onSubmit} className="space-y-4">
