@@ -44,6 +44,7 @@ type AuthContextValue = {
     signUp: (credentials: SignUpCredentials) => Promise<void>;
     signOut: () => Promise<void>;
     refreshSession: () => Promise<void>;
+    /** Atualiza os dados do usuário logado (não mexe no token de sessão). */
     setUser: (user: AuthUser | null) => void;
 };
 
@@ -63,6 +64,7 @@ type SessionResponse = {
 };
 
 type SignInUpResponse = {
+    /** Token opaco da sessão (não é o id do usuário). */
     sessionId?: unknown;
     user?: SessionResponse["user"];
 };
@@ -93,8 +95,8 @@ function asNumber(value: unknown, fallback = 0): number {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function normalizeUser(rawUser: SessionResponse["user"] | undefined, fallbackId?: string): AuthUser | null {
-    const id = asString(rawUser?.id, fallbackId ?? "");
+function normalizeUser(rawUser: SessionResponse["user"] | undefined): AuthUser | null {
+    const id = asString(rawUser?.id);
     if (!id) {
         return null;
     }
@@ -115,14 +117,26 @@ function normalizeUser(rawUser: SessionResponse["user"] | undefined, fallbackId?
     };
 }
 
-function persistSession(nextUser: AuthUser | null) {
+/** Token da sessão atual, para mandar como `Authorization: Bearer`. */
+export function getStoredSessionToken(): string | null {
+    if (globalThis.window === undefined) {
+        return null;
+    }
+
+    return globalThis.localStorage.getItem(STORAGE_SESSION_KEY);
+}
+
+/** Salva o usuário; o token só é trocado quando um novo é passado (login). */
+function persistSession(nextUser: AuthUser | null, sessionToken?: string) {
     if (globalThis.window === undefined) {
         return;
     }
 
     if (nextUser) {
         globalThis.localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(nextUser));
-        globalThis.localStorage.setItem(STORAGE_SESSION_KEY, nextUser.id);
+        if (sessionToken) {
+            globalThis.localStorage.setItem(STORAGE_SESSION_KEY, sessionToken);
+        }
         return;
     }
 
@@ -160,7 +174,7 @@ function readStoredSession(): { user: AuthUser | null; sessionId: string | null 
                 github: parsed.github,
                 linkedin: parsed.linkedin,
             },
-            sessionId: storedSessionId ?? parsed.id,
+            sessionId: storedSessionId,
         };
     } catch {
         return { user: null, sessionId: storedSessionId };
@@ -180,7 +194,7 @@ async function fetchSession(sessionId: string): Promise<AuthUser | null> {
     }
 
     const data = (await response.json()) as SessionResponse;
-    return normalizeUser(data.user, sessionId);
+    return normalizeUser(data.user);
 }
 
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
@@ -190,6 +204,18 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const setUser = useCallback((nextUser: AuthUser | null) => {
         setAuthUser(nextUser);
         persistSession(nextUser);
+    }, []);
+
+    /** Guarda usuário + token devolvidos por sign-in ou sign-up. */
+    const startSession = useCallback((payload: SignInUpResponse) => {
+        const sessionToken = asString(payload.sessionId);
+        const normalizedUser = normalizeUser(payload.user);
+        if (!sessionToken || !normalizedUser) {
+            throw new Error("Nao foi possivel iniciar a sessao");
+        }
+
+        setAuthUser(normalizedUser);
+        persistSession(normalizedUser, sessionToken);
     }, []);
 
     const clearSession = useCallback(() => {
@@ -244,7 +270,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         (globalThis as { __authClient?: { getState: () => { user: AuthUser | null; sessionId: string | null; isLoading: boolean } } }).__authClient = {
             getState: () => ({
                 user: authUser,
-                sessionId: authUser?.id ?? null,
+                sessionId: authUser ? getStoredSessionToken() : null,
                 isLoading,
             }),
         };
@@ -266,14 +292,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
                 throw new AuthRequestError(payload.message || "Falha no login", payload.code);
             }
 
-            const normalizedUser = normalizeUser(payload.user, asString(payload.sessionId));
-            if (!normalizedUser) {
-                throw new Error("Nao foi possivel iniciar a sessao");
-            }
-
-            setUser(normalizedUser);
+            startSession(payload);
         },
-        [setUser],
+        [startSession],
     );
 
     const signUp = useCallback(
@@ -292,19 +313,16 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
                 throw new Error(payload.message || "Falha no cadastro");
             }
 
-            const normalizedUser = normalizeUser(payload.user, asString(payload.sessionId));
-            if (!normalizedUser) {
-                throw new Error("Nao foi possivel criar a sessao");
-            }
-
-            setUser(normalizedUser);
+            startSession(payload);
         },
-        [setUser],
+        [startSession],
     );
 
     const signOut = useCallback(async () => {
+        const sessionToken = getStoredSessionToken();
         await fetch("/api/auth/sign-out", {
             method: "POST",
+            headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : undefined,
             credentials: "include",
         });
 

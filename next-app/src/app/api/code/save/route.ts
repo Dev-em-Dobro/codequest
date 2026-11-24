@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
+import { unauthorized } from "@/lib/server/auth";
+import { getCurrentUserId } from "@/lib/server/current-user";
 import { storage } from "@/lib/server/deps";
 import { parseJsonBody, internalError } from "@/lib/server/http";
 import type { UpdateCode } from "@/lib/server/storage-types";
@@ -8,7 +9,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
     try {
-        const userId = getCurrentUserId(request);
+        const userId = await getCurrentUserId(request);
         if (!userId) {
             return unauthorized();
         }

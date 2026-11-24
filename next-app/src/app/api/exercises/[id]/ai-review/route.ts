@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserId, unauthorized } from "@/lib/server/auth";
+import { unauthorized } from "@/lib/server/auth";
+import { getCurrentUserId } from "@/lib/server/current-user";
 import {
     storage,
     validationEngine,
@@ -46,7 +47,7 @@ async function recordIncorrectAttempt(userId: string, exerciseId: string): Promi
 
 export async function POST(request: Request, { params }: Params) {
     try {
-        const userId = getCurrentUserId(request);
+        const userId = await getCurrentUserId(request);
         if (!userId) {
             return unauthorized();
         }

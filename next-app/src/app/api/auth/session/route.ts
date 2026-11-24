@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { storage } from "@/lib/server/deps";
-import { getCurrentUserId } from "@/lib/server/auth";
+import { getCurrentUserId } from "@/lib/server/current-user";
 import { internalError } from "@/lib/server/http";
 import { toPublicUser } from "@/lib/server/user-contract";
 
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
     try {
-        const userId = getCurrentUserId(request);
+        const userId = await getCurrentUserId(request);
         if (!userId) {
             return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
         }

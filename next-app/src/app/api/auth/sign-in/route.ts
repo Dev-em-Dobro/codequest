@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { storage } from "@/lib/server/deps";
 import { parseJsonBody, internalError } from "@/lib/server/http";
-import { setSessionCookie } from "@/lib/server/auth";
+import { respondWithNewSession } from "@/lib/server/current-user";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
-import { toPublicUser } from "@/lib/server/user-contract";
 import { verifyPassword } from "@/lib/server/password";
 
 export const runtime = "nodejs";
@@ -59,15 +58,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Email ou senha inválidos" }, { status: 401 });
     }
 
-    const publicUser = toPublicUser(user);
-
-    const response = NextResponse.json({
-      sessionId: user.id,
-      user: publicUser,
-    });
-
-    setSessionCookie(response, user.id);
-    return response;
+    return await respondWithNewSession(user);
   } catch (error) {
     return internalError(error, { route: "auth-sign-in" });
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserId } from "@/lib/server/auth";
+import { getCurrentUserId } from "@/lib/server/current-user";
 import { storage } from "@/lib/server/deps";
 import { internalError } from "@/lib/server/http";
 import { enforceRateLimit } from "@/lib/server/rate-limit";
@@ -21,7 +21,7 @@ export async function DELETE(request: Request, { params }: Params) {
       return limited;
     }
 
-    const userId = getCurrentUserId(request);
+    const userId = await getCurrentUserId(request);
     if (!userId) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }

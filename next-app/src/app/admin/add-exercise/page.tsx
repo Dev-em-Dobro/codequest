@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Header } from "@/components/layout/header";
-import { useAuth } from "@/hooks/use-auth";
+import { getStoredSessionToken } from "@/lib/auth-client";
 
 type StatusState = {
     type: "success" | "error" | "info";
@@ -40,7 +40,6 @@ const exampleExercise = {
 
 export default function AddExercisePage() {
     const router = useRouter();
-    const { user } = useAuth();
 
     const [jsonInput, setJsonInput] = useState("");
     const [loading, setLoading] = useState(false);
@@ -61,7 +60,7 @@ export default function AddExercisePage() {
     const handleSubmit = async (event: { preventDefault: () => void }) => {
         event.preventDefault();
 
-        const token = user?.id || globalThis.localStorage.getItem("codequest_session_id");
+        const token = getStoredSessionToken();
         if (!token) {
             setStatus({
                 type: "error",
