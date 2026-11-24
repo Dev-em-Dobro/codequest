@@ -45,3 +45,40 @@ export async function getCurrentUserId(request: Request): Promise<string | null>
 
     return storage.getSessionUserId(hashOpaqueToken(token));
 }
+
+/** E-mails com acesso de admin, separados por vírgula na env ADMIN_EMAILS. */
+function getAdminEmails(): Set<string> {
+    return new Set(
+        (process.env.ADMIN_EMAILS ?? "")
+            .split(",")
+            .map((email) => email.trim().toLowerCase())
+            .filter(Boolean),
+    );
+}
+
+export function isAdminEmail(email: string | undefined): boolean {
+    if (!email) {
+        return false;
+    }
+
+    return getAdminEmails().has(email.trim().toLowerCase());
+}
+
+type AdminCheck = { ok: true; admin: User } | { ok: false; response: NextResponse };
+
+export async function requireAdmin(request: Request): Promise<AdminCheck> {
+    const userId = await getCurrentUserId(request);
+    if (!userId) {
+        return { ok: false, response: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user || !isAdminEmail(user.email)) {
+        return {
+            ok: false,
+            response: NextResponse.json({ error: "Acesso restrito a administradores" }, { status: 403 }),
+        };
+    }
+
+    return { ok: true, admin: user };
+}
