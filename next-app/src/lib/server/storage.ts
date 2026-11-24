@@ -35,6 +35,8 @@ export interface IStorage {
     getSessionUserId(tokenHash: string): Promise<string | null>;
     deleteSession(tokenHash: string): Promise<void>;
     deleteUserSessions(userId: string): Promise<void>;
+    createLoginLink(userId: string, createdBy: string, tokenHash: string, expiresAt: Date): Promise<void>;
+    consumeLoginLink(tokenHash: string): Promise<string | null>;
     updateCode(userId: string, data: UpdateCode): Promise<UserProgress>;
     createFeedback(data: {
         feedback: string;
@@ -57,7 +59,7 @@ function ensureDatabaseConfigured(): void {
 }
 
 /**
- * Tabelas de autenticação (sessões). Criadas sob demanda, uma vez por
+ * Tabelas de autenticação (sessões e links de login). Criadas sob demanda, uma vez por
  * processo, para o deploy não depender de rodar migração antes.
  */
 let authTablesReady: Promise<void> | null = null;
@@ -73,6 +75,16 @@ function ensureAuthTables(): Promise<void> {
       )
     `;
         await sql`CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx ON user_sessions (user_id)`;
+        await sql`
+      CREATE TABLE IF NOT EXISTS login_links (
+        token_hash text PRIMARY KEY,
+        user_id text NOT NULL,
+        created_by text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL,
+        used_at timestamptz
+      )
+    `;
     })().catch((error: unknown) => {
         authTablesReady = null;
         throw error;
@@ -427,6 +439,31 @@ export class NeonJsonStorage implements IStorage {
         ensureDatabaseConfigured();
         await ensureAuthTables();
         await sql`DELETE FROM user_sessions WHERE user_id = ${this.normalizeUserId(userId)}`;
+    }
+
+    async createLoginLink(userId: string, createdBy: string, tokenHash: string, expiresAt: Date): Promise<void> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        await sql`
+      INSERT INTO login_links (token_hash, user_id, created_by, expires_at)
+      VALUES (${tokenHash}, ${this.normalizeUserId(userId)}, ${this.normalizeUserId(createdBy)}, ${expiresAt})
+    `;
+    }
+
+    /** Marca o link como usado e devolve o user_id. Atômico: o mesmo link não funciona duas vezes. */
+    async consumeLoginLink(tokenHash: string): Promise<string | null> {
+        ensureDatabaseConfigured();
+        await ensureAuthTables();
+        const rows = await sql<{ user_id: string }[]>`
+      UPDATE login_links
+      SET used_at = now()
+      WHERE token_hash = ${tokenHash}
+        AND used_at IS NULL
+        AND expires_at > now()
+      RETURNING user_id
+    `;
+
+        return rows[0]?.user_id ?? null;
     }
 
     async createUser(user: InsertUser & { id?: string; passwordHash?: string }): Promise<User> {

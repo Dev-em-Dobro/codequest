@@ -44,6 +44,8 @@ type AuthContextValue = {
     signUp: (credentials: SignUpCredentials) => Promise<void>;
     signOut: () => Promise<void>;
     refreshSession: () => Promise<void>;
+    /** Entra com um link de acesso gerado por um admin (/auth/link?token=...). */
+    signInWithLoginLink: (token: string) => Promise<void>;
     /** Atualiza os dados do usuário logado (não mexe no token de sessão). */
     setUser: (user: AuthUser | null) => void;
 };
@@ -206,7 +208,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         persistSession(nextUser);
     }, []);
 
-    /** Guarda usuário + token devolvidos por sign-in ou sign-up. */
+    /** Guarda usuário + token devolvidos por sign-in, sign-up ou link de acesso. */
     const startSession = useCallback((payload: SignInUpResponse) => {
         const sessionToken = asString(payload.sessionId);
         const normalizedUser = normalizeUser(payload.user);
@@ -318,6 +320,27 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         [startSession],
     );
 
+    const signInWithLoginLink = useCallback(
+        async (token: string) => {
+            const response = await fetch("/api/auth/login-link", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ token }),
+                credentials: "include",
+            });
+
+            const payload = (await response.json()) as SignInUpResponse & { message?: string };
+            if (!response.ok) {
+                throw new Error(payload.message || "Link de acesso inválido");
+            }
+
+            startSession(payload);
+        },
+        [startSession],
+    );
+
     const signOut = useCallback(async () => {
         const sessionToken = getStoredSessionToken();
         await fetch("/api/auth/sign-out", {
@@ -338,9 +361,10 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
             signUp,
             signOut,
             refreshSession,
+            signInWithLoginLink,
             setUser,
         }),
-        [authUser, isLoading, signIn, signUp, signOut, refreshSession, setUser],
+        [authUser, isLoading, signIn, signUp, signOut, refreshSession, signInWithLoginLink, setUser],
     );
 
     return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
